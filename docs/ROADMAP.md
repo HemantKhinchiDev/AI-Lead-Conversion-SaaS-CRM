@@ -356,7 +356,7 @@ Acceptance criteria:
 
 ## Current Status
 
-Project stage: Foundation Tasks 0.1–0.3 complete; next phase is database and authentication.
+Project stage: Foundation Tasks 0.1–0.4 complete; next phase is database and authentication.
 
 - [x] Product concept
 - [x] PRD
@@ -365,6 +365,7 @@ Project stage: Foundation Tasks 0.1–0.3 complete; next phase is database and a
 - [x] README
 - [x] AGENTS instructions
 - [x] Git ignore rules
+- [x] Dummy dashboard preview (Task 0.4, static demo data)
 - [ ] Workflow documentation
 - [ ] Database migrations
 - [ ] Development environment

@@ -252,7 +252,7 @@ Do not introduce requirements that conflict with the PRD.
 
 ## 11. Current Development Status
 
-**Project stage:** Foundation complete (Tasks 0.1–0.3); next phase is database and authentication
+**Project stage:** Foundation complete (Tasks 0.1–0.4); next phase is database and authentication
 
 | Area | Status |
 |---|---|
@@ -263,6 +263,7 @@ Do not introduce requirements that conflict with the PRD.
 | Workflow documentation | Pending |
 | Development roadmap | Pending |
 | Frontend implementation | Foundation shell implemented (Task 0.3) |
+| Demo dashboard | Static preview at `/dashboard` (Task 0.4), labelled demo data only |
 | Backend implementation | Foundation health slice implemented |
 | AI voice integration | Not started |
 | WhatsApp integration | Not started |

@@ -75,6 +75,9 @@ export default async function Home() {
             "Set NEXT_PUBLIC_API_BASE_URL to check the backend."
           )}
         </p>
+        <p className="hint">
+          <a href="/dashboard">Open demo dashboard</a>
+        </p>
       </section>
     </main>
   );
