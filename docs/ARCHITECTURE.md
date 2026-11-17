@@ -46,10 +46,11 @@ The architecture must support multiple businesses with isolated data.
 - Row-Level Security (RLS)
 
 ### AI and Language Models
-- OpenRouter for initial model experimentation.
-- Gemini or another suitable LLM as a backup candidate.
+- Groq Free tier for model inference.
+- Gemini Free tier as the secondary, replaceable option.
 - Structured outputs and tool calling for lead qualification.
-- Model provider must remain replaceable.
+- Model provider must remain replaceable; offline stub is the test default.
+- No paid tier, paid token or payment method on file (₹0 budget).
 
 ### Voice Technology
 - LiveKit as a real-time audio transport candidate.
@@ -63,12 +64,13 @@ The architecture must support multiple businesses with isolated data.
 
 ### Development and Testing
 - GitHub for version control.
-- GitHub Codespaces for cloud development.
-- OpenHands as the supervised AI coding agent.
+- Local development first; GitHub Codespaces Free only while it remains ₹0.
+- OpenCode Free as the supervised AI coding agent.
 - Google Colab for AI experiments.
 - Pytest for backend testing.
 - Playwright for frontend testing.
 - Agent Browser for optional agent-driven browser testing.
+- Every tool above must stay on a genuine free tier (no card, no auto-upgrade); fall back to offline stubs if a quota is hit.
 
 ## 3. High-Level System Architecture
 
@@ -167,8 +169,15 @@ ai-lead-conversion-saas/
 │
 ├── infra/
 │
+├── decisions/
+│   └── 0001-foundation-conventions.md
+│
 └── docs/
-    └── decisions/
+    ├── PRD.md
+    ├── ARCHITECTURE.md
+    ├── DATABASE.md
+    ├── ROADMAP.md
+    └── AGENTS.md
 ```
 
 Do not create every directory immediately. Add folders as implementation tasks require them.
@@ -450,10 +459,10 @@ Security requirements:
 
 Development environment:
 - GitHub repository.
-- GitHub Codespaces.
-- OpenHands cloud agent runtime.
-- Supabase development project.
-- Hosted AI model APIs.
+- Local FastAPI development server; GitHub Codespaces Free only while it remains ₹0.
+- OpenCode Free as the supervised coding agent.
+- Supabase Free development project.
+- Groq/Gemini free-tier model APIs; offline stub by default.
 
 AI experiments:
 - Google Colab.
