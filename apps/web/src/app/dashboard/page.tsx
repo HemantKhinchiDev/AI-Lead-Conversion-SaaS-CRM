@@ -81,6 +81,126 @@ const leads: Lead[] = [
     status: "Contacted",
     updated: "Yesterday, 11:05",
   },
+  {
+    id: "LD-1036",
+    name: "Aditya Desai",
+    source: "Website enquiry",
+    permission: "verified",
+    status: "Interested",
+    updated: "Yesterday, 10:40",
+  },
+  {
+    id: "LD-1035",
+    name: "Priya Nair",
+    source: "Manual entry",
+    permission: "review",
+    status: "New",
+    updated: "Yesterday, 09:15",
+  },
+  {
+    id: "LD-1034",
+    name: "Vijay Kumar",
+    source: "CSV import",
+    permission: "verified",
+    status: "Contacted",
+    updated: "Monday, 18:30",
+  },
+  {
+    id: "LD-1033",
+    name: "Sneha Iyer",
+    source: "Website enquiry",
+    permission: "excluded",
+    status: "Do not contact",
+    updated: "Monday, 16:05",
+  },
+  {
+    id: "LD-1032",
+    name: "Rahul Verma",
+    source: "CSV import",
+    permission: "verified",
+    status: "Qualified",
+    updated: "Monday, 14:20",
+  },
+  {
+    id: "LD-1031",
+    name: "Anjali Sharma",
+    source: "Website enquiry",
+    permission: "verified",
+    status: "Interested",
+    updated: "Monday, 11:50",
+  },
+  {
+    id: "LD-1030",
+    name: "Deepak Joshi",
+    source: "Manual entry",
+    permission: "review",
+    status: "New",
+    updated: "Monday, 09:10",
+  },
+  {
+    id: "LD-1029",
+    name: "Kavita Rana",
+    source: "CSV import",
+    permission: "verified",
+    status: "Contacted",
+    updated: "Friday, 17:45",
+  },
+  {
+    id: "LD-1028",
+    name: "Nikhil Bhatt",
+    source: "Website enquiry",
+    permission: "excluded",
+    status: "Do not contact",
+    updated: "Friday, 15:30",
+  },
+  {
+    id: "LD-1027",
+    name: "Pooja Menon",
+    source: "Manual entry",
+    permission: "verified",
+    status: "Qualified",
+    updated: "Friday, 12:05",
+  },
+  {
+    id: "LD-1026",
+    name: "Sanjay Gupta",
+    source: "CSV import",
+    permission: "review",
+    status: "New",
+    updated: "Friday, 10:20",
+  },
+  {
+    id: "LD-1025",
+    name: "Rina Kapoor",
+    source: "Website enquiry",
+    permission: "verified",
+    status: "Contacted",
+    updated: "Thursday, 18:10",
+  },
+  {
+    id: "LD-1024",
+    name: "Manish Chauhan",
+    source: "CSV import",
+    permission: "excluded",
+    status: "Do not contact",
+    updated: "Thursday, 16:40",
+  },
+  {
+    id: "LD-1023",
+    name: "Tara Sheth",
+    source: "Manual entry",
+    permission: "verified",
+    status: "Qualified",
+    updated: "Thursday, 13:25",
+  },
+  {
+    id: "LD-1022",
+    name: "Omkar Patil",
+    source: "Website enquiry",
+    permission: "review",
+    status: "New",
+    updated: "Thursday, 10:05",
+  },
 ];
 
 const campaigns: Campaign[] = [
@@ -218,7 +338,7 @@ export default function DashboardPage() {
               <h2 className="section-title" id="leads-title">
                 Recent leads
               </h2>
-              <p className="section-note">Permission status is shown for every lead</p>
+              <p className="section-note">20 static sample leads · permission status shown for every lead</p>
             </div>
             <div className="table-wrap">
               <table className="table">

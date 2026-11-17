@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -39,6 +40,12 @@ def test_dashboard_shows_required_sections() -> None:
         "Excluded",
     ):
         assert label in page
+
+
+def test_dashboard_shows_twenty_unique_dummy_leads() -> None:
+    lead_ids = re.findall(r'id: "(LD-\d+)"', _read(DASHBOARD))
+    assert len(lead_ids) == 20
+    assert len(set(lead_ids)) == 20
 
 
 def test_dashboard_contains_no_backend_secret_names() -> None:
