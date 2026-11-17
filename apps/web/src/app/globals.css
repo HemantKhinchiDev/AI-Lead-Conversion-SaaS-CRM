@@ -371,6 +371,80 @@ a {
   border-top: 1px solid #1e293b;
 }
 
+.lead-form {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid #1e293b;
+  border-radius: 0.85rem;
+  background: #111827;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.4rem;
+  color: #94a3b8;
+  font-size: 0.8125rem;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  font: inherit;
+}
+
+.button {
+  justify-self: start;
+  padding: 0.65rem 1rem;
+  border: 1px solid #0369a1;
+  border-radius: 0.5rem;
+  background: #0ea5e9;
+  color: #0b1120;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.form-message,
+.state-message {
+  margin: 0.75rem 0 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  color: #cbd5e1;
+  font-size: 0.875rem;
+}
+
+.state-message {
+  margin: 0;
+  border: 0;
+}
+
+.form-message[data-state="error"] {
+  background: #7f1d1d;
+  color: #fecaca;
+}
+
+.form-message[data-state="success"] {
+  background: #14532d;
+  color: #bbf7d0;
+}
+
 @media (max-width: 800px) {
   .app-shell {
     grid-template-columns: minmax(0, 1fr);
