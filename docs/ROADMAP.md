@@ -26,14 +26,14 @@ Tasks:
 
 - [ ] Create GitHub repository.
 - [ ] Configure GitHub Codespaces.
-- [ ] Create frontend project using Next.js.
-- [ ] Configure React and TypeScript.
+- [x] Create frontend project using Next.js.
+- [x] Configure React and TypeScript.
 - [ ] Configure Tailwind CSS.
 - [ ] Create Python backend using FastAPI.
 - [ ] Configure environment variables.
 - [ ] Connect Supabase development project.
 - [ ] Configure Git and `.gitignore`.
-- [ ] Verify frontend and backend run independently.
+- [x] Verify frontend and backend run independently.
 
 Acceptance criteria:
 
@@ -356,7 +356,7 @@ Acceptance criteria:
 
 ## Current Status
 
-Project stage: Documentation and planning.
+Project stage: Foundation Tasks 0.1–0.3 complete; next phase is database and authentication.
 
 - [x] Product concept
 - [x] PRD

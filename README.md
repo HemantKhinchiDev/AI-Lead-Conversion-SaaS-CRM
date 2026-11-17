@@ -131,38 +131,35 @@ We will prefer modular, replaceable integrations instead of tightly coupling the
 ```text
 ai-lead-conversion-platform/
 │
-├── frontend/
-│   ├── app/
-│   ├── components/
-│   ├── hooks/
-│   ├── lib/
-│   ├── services/
-│   └── types/
+├── apps/
+│   └── web/
+│       └── src/
+│           └── app/
 │
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   ├── core/
-│   │   ├── models/
-│   │   ├── schemas/
-│   │   ├── services/
-│   │   ├── workers/
-│   │   └── integrations/
-│   └── tests/
+├── services/
+│   └── api/
+│       └── app/
 │
+├── tests/
+│   ├── backend/
+│   ├── frontend/
+│   └── integration/
+│
+├── decisions/
 ├── docs/
 │   ├── PRD.md
 │   ├── ARCHITECTURE.md
 │   ├── DATABASE.md
-│   ├── WORKFLOW.md
-│   └── ROADMAP.md
+│   ├── ROADMAP.md
+│   └── AGENTS.md
 │
 ├── AGENTS.md
 ├── README.md
+├── WORKFLOW.md
 └── .gitignore
 ```
 
-The root-level project documents are the source of truth. Keep the `docs/` copies synchronized only if we intentionally maintain both locations.
+The authoritative product documents are under `docs/`, with numbered decisions under `decisions/`.
 
 ---
 
@@ -242,11 +239,11 @@ Read these documents before implementing features:
 
 | File | Purpose |
 |---|---|
-| `PRD.md` | Product requirements: what we are building and why |
-| `ARCHITECTURE.md` | Technical architecture: how the system is structured |
-| `DATABASE.md` | Database entities, relationships, and data rules |
+| `docs/PRD.md` | Product requirements: what we are building and why |
+| `docs/ARCHITECTURE.md` | Technical architecture: how the system is structured |
+| `docs/DATABASE.md` | Database entities, relationships, and data rules |
 | `WORKFLOW.md` | Business processes and application workflows |
-| `ROADMAP.md` | Development phases and implementation order |
+| `docs/ROADMAP.md` | Development phases and implementation order |
 | `AGENTS.md` | Instructions for AI coding agents |
 
 Do not introduce requirements that conflict with the PRD.
@@ -255,7 +252,7 @@ Do not introduce requirements that conflict with the PRD.
 
 ## 11. Current Development Status
 
-**Project stage:** Planning and foundation
+**Project stage:** Foundation complete (Tasks 0.1–0.3); next phase is database and authentication
 
 | Area | Status |
 |---|---|
@@ -265,8 +262,8 @@ Do not introduce requirements that conflict with the PRD.
 | Database design | Pending |
 | Workflow documentation | Pending |
 | Development roadmap | Pending |
-| Frontend implementation | Not started |
-| Backend implementation | Not started |
+| Frontend implementation | Foundation shell implemented (Task 0.3) |
+| Backend implementation | Foundation health slice implemented |
 | AI voice integration | Not started |
 | WhatsApp integration | Not started |
 | Pilot testing | Not started |

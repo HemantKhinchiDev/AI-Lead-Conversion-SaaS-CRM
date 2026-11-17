@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Version 0.2 — foundation Task 0.1 and 0.2 implemented; Task 0.3 todo; no new dependencies or spend |
+| Status | Version 0.2 — foundation Tasks 0.1–0.3 implemented; pinned free npm packages only; no paid services or spend |
 | Date | 2026-11-17 |
 | Supersedes | v0.1 — *AI Lead Conversion & Voice Agent SaaS, PRD Version 0.1* (17 November 2026) |
 | Authoritative location | `docs/PRD.md` (per ADR-0001; root-level duplicates are legacy) |
@@ -509,7 +509,7 @@ The v0.1 "MVP Phase 1 — Foundation" is broken into three small, independently 
 
 - [x] **Task 0.1 — Backend health slice (done).** FastAPI boots; `GET /health` → `{"status":"ok"}`; unknown route → 404; offline backend tests pass. Do not duplicate this work.
 - [x] **Task 0.2 — Environment examples + config validation (done).** Placeholder-only `.env.example`; validated `app.core.config.load_settings`; no real secret, no secret in logs, `.env*` ignored by Git.
-- [ ] **Task 0.3 — Frontend shell + folder alignment (todo).** `apps/web` Next.js app boots locally and on Vercel Free; minimal page calls the backend health endpoint; tree matches `docs/ARCHITECTURE.md` §4.
+- [x] **Task 0.3 — Frontend shell + folder alignment (done).** `apps/web` Next.js app builds locally and is Vercel Free compatible; minimal page calls the backend health endpoint; tree matches `docs/ARCHITECTURE.md` §4. Verified 2026-11-17.
 
 ### 13.2 Task details
 
@@ -517,9 +517,9 @@ The v0.1 "MVP Phase 1 — Foundation" is broken into three small, independently 
 |---|---|---|---|---|
 | 0.1 | `services/api/app/main.py`, `tests/backend/test_health.py`, `pytest.ini`, `services/api/requirements.txt` | App imports without secrets; health 200; unknown route 404; `python3 -m pytest -q` green | T-FND-001 | **Done** — verified 2026-11-17: 2 passed (one harmless Starlette/anyio deprecation warning) |
 | 0.2 | `services/api/.env.example`, `services/api/app/core/config.py`, `tests/backend/test_config.py`, `.gitignore` | Example values are placeholders; missing/invalid config fails with a clear error; no secret logged or committed; backend suite still green | T-FND-002 | **Done** — verified 2026-11-17: 15 passed (2 health + 13 config; one harmless Starlette/anyio deprecation warning) |
-| 0.3 | `apps/web/` (Next.js + TypeScript), `tests/frontend/`, deployment config for Vercel Free | Dev server boots; health link works; structure matches ARCHITECTURE §4 (`apps/web`, `services/api`, `tests/backend\|frontend\|integration`); no secret in the frontend bundle | T-FND-003 | Todo |
+| 0.3 | `apps/web/` (Next.js + TypeScript), `tests/frontend/`, deployment config for Vercel Free | Build succeeds; health endpoint call and link are driven only by `NEXT_PUBLIC_API_BASE_URL`; structure matches ARCHITECTURE §4 (`apps/web`, `services/api`, `tests/backend\|frontend\|integration`); no secret in the frontend bundle | T-FND-003 | **Done** — verified 2026-11-17: pinned npm packages, offline frontend checks, `next build`, `tsc --noEmit` and pytest pass; ₹0 spend |
 
-Each task is done only when its test ID passes, docs are updated, spend stays ₹0 and no secret is committed (§12). Tasks 0.1 and 0.2 are implemented with no new dependencies; Task 0.3 remains the next todo.
+Each task is done only when its test ID passes, docs are updated, spend stays ₹0 and no secret is committed (§12). Tasks 0.1 and 0.2 were implemented with no new dependencies; Task 0.3 adds pinned, free npm packages only and no paid service.
 
 ### 13.3 Subsequent phases (order unchanged)
 
