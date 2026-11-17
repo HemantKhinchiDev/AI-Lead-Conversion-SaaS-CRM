@@ -503,13 +503,16 @@ All tests run locally with pinned free dependencies: `python3 -m pytest -q` (bac
 
 ## 13. Delivery plan — MVP Phase 1 split into Task 0.1 / 0.2 / 0.3
 
-The v0.1 "MVP Phase 1 — Foundation" is broken into three small, independently testable tasks below (numbered 0.x to match the foundation phase). Implementation order follows root `AGENTS.md` §4 (do not skip ahead). Auth/tenant work starts at Task 1.1 only after all three foundation tasks pass. Every task uses only the ₹0 stack from §6.1: Supabase Free, Vercel Free, Groq/Gemini Free tiers, OpenCode Free and local/offline tooling.
+The v0.1 "MVP Phase 1 — Foundation" is broken into five small, independently testable tasks below (numbered 0.x to match the foundation phase). Implementation order follows root `AGENTS.md` §4 (do not skip ahead). Task 0.5 only wires a labelled dummy API to the demo dashboard; it does not implement Phase 1 auth/tenancy or Phase 3 lead management. Auth/tenant work starts at Task 1.1 only after all five foundation tasks pass.
+ Every task uses only the ₹0 stack from §6.1: Supabase Free, Vercel Free, Groq/Gemini Free tiers, OpenCode Free and local/offline tooling.
 
 ### 13.1 Task checklist
 
 - [x] **Task 0.1 — Backend health slice (done).** FastAPI boots; `GET /health` → `{"status":"ok"}`; unknown route → 404; offline backend tests pass. Do not duplicate this work.
 - [x] **Task 0.2 — Environment examples + config validation (done).** Placeholder-only `.env.example`; validated `app.core.config.load_settings`; no real secret, no secret in logs, `.env*` ignored by Git.
 - [x] **Task 0.3 — Frontend shell + folder alignment (done).** `apps/web` Next.js app builds locally and is Vercel Free compatible; minimal page calls the backend health endpoint; tree matches `docs/ARCHITECTURE.md` §4. Verified 2026-11-17.
+- [x] **Task 0.4 — Dummy dashboard preview (done).** Static, clearly labelled demo dataset at `/dashboard` with 20 synthetic leads; offline frontend checks pass.
+- [x] **Task 0.5 — Dummy leads API + dashboard wiring (done).** In-memory `GET /leads` and `POST /leads` serve 20 synthetic leads; `/dashboard` fetches the list and posts new leads; loading, empty and error states included; `python3 -m pytest -q`, `tsc --noEmit` and `next build` pass. No database, auth or tenant logic is added.
 
 ### 13.2 Task details
 
@@ -518,14 +521,16 @@ The v0.1 "MVP Phase 1 — Foundation" is broken into three small, independently 
 | 0.1 | `services/api/app/main.py`, `tests/backend/test_health.py`, `pytest.ini`, `services/api/requirements.txt` | App imports without secrets; health 200; unknown route 404; `python3 -m pytest -q` green | T-FND-001 | **Done** — verified 2026-11-17: 2 passed (one harmless Starlette/anyio deprecation warning) |
 | 0.2 | `services/api/.env.example`, `services/api/app/core/config.py`, `tests/backend/test_config.py`, `.gitignore` | Example values are placeholders; missing/invalid config fails with a clear error; no secret logged or committed; backend suite still green | T-FND-002 | **Done** — verified 2026-11-17: 15 passed (2 health + 13 config; one harmless Starlette/anyio deprecation warning) |
 | 0.3 | `apps/web/` (Next.js + TypeScript), `tests/frontend/`, deployment config for Vercel Free | Build succeeds; health endpoint call and link are driven only by `NEXT_PUBLIC_API_BASE_URL`; structure matches ARCHITECTURE §4 (`apps/web`, `services/api`, `tests/backend\|frontend\|integration`); no secret in the frontend bundle | T-FND-003 | **Done** — verified 2026-11-17: pinned npm packages, offline frontend checks, `next build`, `tsc --noEmit` and pytest pass; ₹0 spend |
+| 0.4 | `apps/web/src/app/dashboard/`, `tests/frontend/test_dashboard_offline.py` | Static dashboard preview at `/dashboard`, clearly labelled demo data; 20 unique synthetic leads; no backend connection | — | **Done** — verified 2026-11-17 |
+| 0.5 | `services/api/app/api/leads.py`, `app/schemas/lead.py`, `app/services/lead_store.py`, `app/main.py`, `apps/web/src/app/dashboard/`, `apps/web/src/lib/leads.ts`, backend/frontend tests | `GET /leads` returns 20 synthetic items with `mode=dummy`; `POST /leads` validates and normalises phone, rejects duplicates with 409, and never lets a client grant permission; dashboard shows loading/empty/error states and an add-lead form; CORS limited to local Next.js origins | T-UI-001 (partial) | **Done** — verified 2026-11-17: 48 pytest passes, `tsc --noEmit`, `next build`, live uvicorn GET/POST smoke test; ₹0 spend |
 
-Each task is done only when its test ID passes, docs are updated, spend stays ₹0 and no secret is committed (§12). Tasks 0.1 and 0.2 were implemented with no new dependencies; Task 0.3 adds pinned, free npm packages only and no paid service.
+Each task is done only when its test ID passes, docs are updated, spend stays ₹0 and no secret is committed (§12). Tasks 0.1 and 0.2 were implemented with no new dependencies; Task 0.3 adds pinned, free npm packages only and no paid service. Task 0.5 adds no dependency: its store is in-memory and process-local, so it is a wiring demo, not Phase 1 persistence, Phase 3 lead management or any tenant boundary.
 
 ### 13.3 Subsequent phases (order unchanged)
 
 | Phase | Focus | Exit criteria |
 |---|---|---|
-| 0 | Foundation = Tasks 0.1–0.3: repo, pinned deps, config examples, local backend/frontend boot | `python3 -m pytest -q` passes; no secrets; `apps/web` dev server boots **[D]** |
+| 0 | Foundation = Tasks 0.1–0.5: repo, pinned deps, config examples, local backend/frontend boot, labelled dummy dashboard and dummy `/leads` API | `python3 -m pytest -q` passes; no secrets; `apps/web` dev server boots; dashboard reads/writes the dummy API **[D]** |
 | 1 | Database + auth/tenant/RLS, roles, audit | Register/login; isolated workspaces; T-ISO tests pass |
 | 2 | Dashboard shell, business profile, projects/knowledge scaffolding | Owner can navigate and configure workspace |
 | 3 | Lead management + CSV/XLSX import + consent evidence + suppression | Import tests T-IMP/T-CONS pass |

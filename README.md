@@ -252,7 +252,7 @@ Do not introduce requirements that conflict with the PRD.
 
 ## 11. Current Development Status
 
-**Project stage:** Foundation complete (Tasks 0.1–0.4); next phase is database and authentication
+**Project stage:** Foundation complete (Tasks 0.1–0.5); next phase is database and authentication
 
 | Area | Status |
 |---|---|
@@ -263,13 +263,19 @@ Do not introduce requirements that conflict with the PRD.
 | Workflow documentation | Pending |
 | Development roadmap | Pending |
 | Frontend implementation | Foundation shell implemented (Task 0.3) |
-| Demo dashboard | Static preview at `/dashboard` (Task 0.4), labelled demo data only |
-| Backend implementation | Foundation health slice implemented |
+| Demo dashboard | `/dashboard` reads and writes leads through the dummy `/leads` API (Task 0.5), labelled demo data only |
+| Backend implementation | Health slice plus in-memory dummy `GET /leads` and `POST /leads` (Task 0.5) |
 | AI voice integration | Not started |
 | WhatsApp integration | Not started |
 | Pilot testing | Not started |
 
 Update this section as implementation progresses.
+
+### Task 0.5 — dummy leads API and connected dashboard
+
+`GET /leads` returns `{"items": [...], "total": 20, "mode": "dummy"}` from an in-memory store of 20 synthetic leads. `POST /leads` accepts `full_name`, `phone` and `source`, normalises the Indian mobile number, rejects duplicate numbers with HTTP 409, and always creates the lead with `permission = "review"` and `lead_status = "new"`. Clients cannot set permission or status; a phone number never grants contact permission.
+
+The store is process-local and resets on API restart. There is no database, authentication, tenancy or real calling/messaging yet. `NEXT_PUBLIC_API_BASE_URL` remains the only frontend environment variable, and the backend permits browser calls only from the local Next.js origins. This task demonstrates API wiring only; it does not replace Phase 1 tenancy or Phase 3 lead management.
 
 ---
 
