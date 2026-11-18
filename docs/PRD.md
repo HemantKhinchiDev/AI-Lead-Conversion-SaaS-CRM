@@ -513,6 +513,7 @@ The v0.1 "MVP Phase 1 — Foundation" is broken into five small, independently t
 - [x] **Task 0.3 — Frontend shell + folder alignment (done).** `apps/web` Next.js app builds locally and is Vercel Free compatible; minimal page calls the backend health endpoint; tree matches `docs/ARCHITECTURE.md` §4. Verified 2026-11-17.
 - [x] **Task 0.4 — Dummy dashboard preview (done).** Static, clearly labelled demo dataset at `/dashboard` with 20 synthetic leads; offline frontend checks pass.
 - [x] **Task 0.5 — Dummy leads API + dashboard wiring (done).** In-memory `GET /leads` and `POST /leads` serve 20 synthetic leads; `/dashboard` fetches the list and posts new leads; loading, empty and error states included; `python3 -m pytest -q`, `tsc --noEmit` and `next build` pass. No database, auth or tenant logic is added.
+- [x] **Task 1.1 — Supabase Auth + tenant schema + RLS + login page (done).** Migrations create `tenants`/`users`, a signup trigger creates one tenant and its owner, RLS scopes reads to the session tenant, and `/login` supports sign-in/registration with the browser anon key only (ADR-0002). Offline static checks pass; live RLS verification is still required.
 
 ### 13.2 Task details
 

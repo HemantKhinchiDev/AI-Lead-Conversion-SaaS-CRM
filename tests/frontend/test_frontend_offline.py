@@ -24,6 +24,7 @@ def test_package_manifest_is_pinned_and_offline_friendly() -> None:
     assert (WEB / "package-lock.json").is_file()
     dependencies = data["dependencies"] | data["devDependencies"]
     assert set(dependencies) == {
+        "@supabase/supabase-js",
         "next",
         "react",
         "react-dom",
@@ -66,16 +67,19 @@ def test_health_page_uses_only_public_api_base_url() -> None:
 
     sources = "\n".join(
         _read(path)
-        for path in SRC.rglob("*")
+        for path in (WEB / "src").rglob("*")
         if path.suffix in {".ts", ".tsx"}
     )
     env_references = set(re.findall(r"process\.env\.([A-Z0-9_]+)", sources))
-    assert env_references == {"NEXT_PUBLIC_API_BASE_URL"}
+    assert env_references == {
+        "NEXT_PUBLIC_API_BASE_URL",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    }
 
 
 def test_frontend_contains_no_backend_secret_names() -> None:
     forbidden = (
-        "SUPABASE_ANON_KEY",
         "SUPABASE_SERVICE_ROLE_KEY",
         "GROQ_API_KEY",
         "GEMINI_API_KEY",
@@ -89,7 +93,12 @@ def test_frontend_contains_no_backend_secret_names() -> None:
 
 
 def test_env_example_is_placeholder_only() -> None:
-    assert _read(WEB / ".env.example").strip() == "NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000"
+    lines = _read(WEB / ".env.example").strip().splitlines()
+    assert lines == [
+        "NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000",
+        "NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key",
+    ]
 
 
 def test_stylesheet_is_offline() -> None:

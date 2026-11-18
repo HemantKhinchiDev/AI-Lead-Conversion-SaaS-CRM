@@ -76,6 +76,9 @@ export default async function Home() {
           )}
         </p>
         <p className="hint">
+          <a href="/login">Sign in or register a business</a>
+        </p>
+        <p className="hint">
           <a href="/dashboard">Open demo dashboard</a>
         </p>
       </section>

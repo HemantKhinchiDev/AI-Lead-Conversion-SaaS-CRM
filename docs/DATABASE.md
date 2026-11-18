@@ -125,7 +125,7 @@ Supabase Auth manages authentication credentials. This table stores application-
 | tenant_id | UUID | References tenants.id |
 | full_name | TEXT | User name |
 | email | TEXT | User email |
-| role | TEXT | owner, admin, manager, agent |
+| role | TEXT | platform_admin, business_owner, sales_manager, sales_rep (ADR-0001) |
 | status | TEXT | active, inactive |
 | created_at | TIMESTAMPTZ | Creation time |
 | updated_at | TIMESTAMPTZ | Last update |

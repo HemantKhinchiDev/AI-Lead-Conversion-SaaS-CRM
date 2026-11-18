@@ -50,15 +50,16 @@ Acceptance criteria:
 
 Tasks:
 
-- [ ] Implement database migrations.
-- [ ] Create tenant table.
-- [ ] Create user and membership structure.
-- [ ] Configure Supabase authentication.
-- [ ] Implement tenant-level access control.
-- [ ] Enable Row Level Security.
-- [ ] Implement role-based permissions.
+- [x] Implement database migrations (tenants and users).
+- [x] Create tenant table.
+- [x] Create user and membership structure.
+- [x] Configure Supabase authentication.
+- [x] Add login and business registration page in `apps/web`.
+- [x] Implement tenant-level access control.
+- [x] Enable Row Level Security.
+- [x] Implement role-based permissions for tenant reads and owner updates.
 - [ ] Add audit logging.
-- [ ] Write database security tests.
+- [ ] Write live database security tests against a Supabase Free test project (offline static checks exist).
 
 Acceptance criteria:
 
@@ -356,7 +357,7 @@ Acceptance criteria:
 
 ## Current Status
 
-Project stage: Foundation Tasks 0.1–0.5 complete; next phase is database and authentication.
+Project stage: Foundation Tasks 0.1–0.5 complete; Phase 1 auth/tenancy slice complete (ADR-0002). Live Supabase RLS verification, audit logging and dashboard route protection remain.
 
 - [x] Product concept
 - [x] PRD
