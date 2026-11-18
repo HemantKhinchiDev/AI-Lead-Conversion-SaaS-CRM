@@ -22,13 +22,14 @@ export default function LoginPage() {
   const [signedInEmail, setSignedInEmail] = useState("");
 
   useEffect(() => {
-    if (!configured) {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
       return;
     }
 
     let active = true;
-    getSupabaseClient()
-      .auth.getSession()
+    supabase.auth
+      .getSession()
       .then(({ data }) => {
         if (active && data.session) {
           setSignedInEmail(data.session.user.email ?? "");
@@ -55,6 +56,11 @@ export default function LoginPage() {
 
     try {
       const supabase = getSupabaseClient();
+      if (!supabase) {
+        throw new Error(
+          "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+        );
+      }
 
       if (mode === "sign_up") {
         const { data, error: signUpError } = await supabase.auth.signUp({
@@ -102,7 +108,13 @@ export default function LoginPage() {
     setBusy(true);
     setError("");
     try {
-      const { error: signOutError } = await getSupabaseClient().auth.signOut();
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        setSignedInEmail("");
+        setNotice("Signed out.");
+        return;
+      }
+      const { error: signOutError } = await supabase.auth.signOut();
       if (signOutError) {
         throw signOutError;
       }
