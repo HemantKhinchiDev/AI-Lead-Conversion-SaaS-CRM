@@ -153,8 +153,8 @@ export default function LoginPage() {
         </div>
 
         {!configured && (
-          <p className="form-message" data-state="error" role="alert">
-            Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local.
+          <p className="form-message" data-state="success" role="status">
+            Authentication is not configured in this environment. You can still open the demo dashboard.
           </p>
         )}
 
