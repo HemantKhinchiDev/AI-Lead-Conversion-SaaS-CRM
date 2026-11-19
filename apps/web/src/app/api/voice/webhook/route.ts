@@ -17,8 +17,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "call_id is required" }, { status: 400 });
     }
 
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey);
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ??
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !serviceKey) {
+      return NextResponse.json(
+        { error: "Missing Supabase server configuration" },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, serviceKey);
 
     const { data, error } = await supabase
       .from("call_logs")
