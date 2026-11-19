@@ -620,3 +620,31 @@ Q1 and Q6 from the earlier draft are resolved by this v0.2 update: the foundatio
 | OMTM | One Metric That Matters for the current quarter |
 | YODA | Your Own Data — validate with your own experiment data, not other people's market reports |
 | Skin in the game | Validation based on real behaviour/commitment, not stated opinions |
+
+## Task 1.3: AI Voice Agent & Automated Follow-up (v0.3)
+
+### 1. Consent Verification Rule
+- Outbound AI voice calls are strictly blocked unless `leads.consent_given === true`.
+- Every call attempt validates tenant ownership (`user_id = auth.uid()`) before queuing.
+
+### 2. Database Schema (`public.call_logs`)
+- `id` (uuid, PK)
+- `user_id` (uuid, FK -> `auth.users.id`, RLS tenant isolation)
+- `lead_id` (uuid, FK -> `public.leads.id`, cascade delete)
+- `provider` (text: `vapi_or_n8n`, default `vapi_or_n8n`)
+- `call_status` (text: `queued` | `in_progress` | `completed` | `no_answer` | `failed`)
+- `duration_seconds` (integer)
+- `transcript` (text)
+- `ai_summary` (text)
+- `next_action` (text)
+- `created_at` (timestamptz)
+
+### 3. API Endpoints
+- **`POST /api/voice/trigger`**
+  - **Auth:** Authenticated workspace session (`Supabase Auth`).
+  - **Request:** `{ "lead_id": "uuid" }`
+  - **Behavior:** Verifies `consent_given === true`, inserts a `queued` row in `call_logs`, triggers configured webhook (`VOICE_AGENT_WEBHOOK_URL` for Vapi/Retell/n8n) or runs simulated sandbox call if webhook is unset, and returns `{ "call_id": "uuid", "status": "queued" }`.
+- **`POST /api/voice/webhook`**
+  - **Auth:** Shared secret header (`x-webhook-secret`).
+  - **Request:** `{ "call_id": "uuid", "call_status": "completed", "duration_seconds": 45, "transcript": "...", "ai_summary": "...", "next_action": "site_visit" }`
+  - **Behavior:** Updates `call_logs` and optionally advances `leads.status` (e.g., to `contacted` or `site_visit`).
