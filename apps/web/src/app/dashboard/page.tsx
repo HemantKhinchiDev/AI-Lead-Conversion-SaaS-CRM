@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "../../lib/supabase";
 
@@ -56,6 +56,7 @@ export default function DashboardPage() {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [successMsg, setSuccessMsg] = useState<string>("");
+  const historyRequestRef = useRef(0);
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -207,25 +208,39 @@ export default function DashboardPage() {
   }
 
   async function handleOpenCallHistory(lead: Lead) {
+    const requestId = ++historyRequestRef.current;
     setHistoryLead(lead);
     setCallLogs([]);
     setHistoryError("");
     setHistoryLoading(true);
+
     const { data, error } = await supabase
       .from("call_logs")
       .select("id, call_status, duration_seconds, transcript, ai_summary, next_action, created_at")
       .eq("lead_id", lead.id)
       .order("created_at", { ascending: false });
 
+    if (requestId !== historyRequestRef.current) return;
+
     setHistoryLoading(false);
     if (error) {
       setHistoryError(error.message);
       return;
     }
-    setCallLogs((data as CallLog[]) || []);
+
+    const rows = (data as CallLog[]) || [];
+    setCallLogs(rows);
+    if (rows.length > 0) {
+      const latest = rows[0];
+      setCallMap((prev) => ({
+        ...prev,
+        [lead.id]: { call_status: latest.call_status, ai_summary: latest.ai_summary },
+      }));
+    }
   }
 
   function handleCloseCallHistory() {
+    historyRequestRef.current += 1;
     setHistoryLead(null);
     setCallLogs([]);
     setHistoryError("");
