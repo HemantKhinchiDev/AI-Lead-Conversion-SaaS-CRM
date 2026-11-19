@@ -33,6 +33,7 @@ export default function LoginPage() {
       .then(({ data }) => {
         if (active && data.session) {
           setSignedInEmail(data.session.user.email ?? "");
+          router.replace("/dashboard");
         }
       })
       .catch(() => undefined);
@@ -63,10 +64,12 @@ export default function LoginPage() {
       }
 
       if (mode === "sign_up") {
+        const redirectUrl = typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined;
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
           options: {
+            emailRedirectTo: redirectUrl,
             data: {
               business_name: businessName.trim(),
               full_name: fullName.trim(),
