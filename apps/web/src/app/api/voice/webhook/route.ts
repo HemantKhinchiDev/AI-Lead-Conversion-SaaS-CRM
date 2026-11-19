@@ -42,10 +42,32 @@ export async function POST(req: Request) {
       })
       .eq("id", callId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (!data) {
+      return NextResponse.json({ error: "Call log not found" }, { status: 404 });
+    }
+
+    const leadStatus =
+      typeof body?.lead_status === "string"
+        ? body.lead_status.trim().toLowerCase()
+        : "";
+    const leadId = data.lead_id ? String(data.lead_id) : "";
+
+    if (leadId && leadStatus) {
+      const { error: leadError } = await supabase
+        .from("leads")
+        .update({ status: leadStatus })
+        .eq("id", leadId)
+        .maybeSingle();
+
+      if (leadError) {
+        return NextResponse.json({ error: leadError.message }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ ok: true, call: data });
