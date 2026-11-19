@@ -20,6 +20,16 @@ type CallSummary = {
   ai_summary: string | null;
 };
 
+type CallLog = {
+  id: string;
+  call_status: string;
+  duration_seconds: number | null;
+  transcript: string | null;
+  ai_summary: string | null;
+  next_action: string | null;
+  created_at: string;
+};
+
 const STATUS_OPTIONS: Lead["status"][] = [
   "new",
   "contacted",
@@ -37,6 +47,10 @@ export default function DashboardPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [callMap, setCallMap] = useState<Record<string, CallSummary>>({});
   const [callingLeadId, setCallingLeadId] = useState<string | null>(null);
+  const [historyLead, setHistoryLead] = useState<Lead | null>(null);
+  const [callLogs, setCallLogs] = useState<CallLog[]>([]);
+  const [historyLoading, setHistoryLoading] = useState<boolean>(false);
+  const [historyError, setHistoryError] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -191,6 +205,41 @@ export default function DashboardPage() {
       setCallingLeadId(null);
     }
   }
+
+  async function handleOpenCallHistory(lead: Lead) {
+    setHistoryLead(lead);
+    setCallLogs([]);
+    setHistoryError("");
+    setHistoryLoading(true);
+    const { data, error } = await supabase
+      .from("call_logs")
+      .select("id, call_status, duration_seconds, transcript, ai_summary, next_action, created_at")
+      .eq("lead_id", lead.id)
+      .order("created_at", { ascending: false });
+
+    setHistoryLoading(false);
+    if (error) {
+      setHistoryError(error.message);
+      return;
+    }
+    setCallLogs((data as CallLog[]) || []);
+  }
+
+  function handleCloseCallHistory() {
+    setHistoryLead(null);
+    setCallLogs([]);
+    setHistoryError("");
+    setHistoryLoading(false);
+  }
+
+  useEffect(() => {
+    if (!historyLead) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") handleCloseCallHistory();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [historyLead]);
 
   async function handleStatusChange(id: string, newStatus: Lead["status"]) {
     setErrorMsg("");
@@ -384,13 +433,21 @@ export default function DashboardPage() {
                         </td>
                         <td className="py-3 pr-4">
                           <div className="flex flex-col gap-1">
-                            <button
-                              onClick={() => handleTriggerVoiceCall(lead)}
-                              disabled={callingLeadId === lead.id}
-                              className="w-fit rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-                            >
-                              {callingLeadId === lead.id ? "Calling..." : "Trigger AI Call"}
-                            </button>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                onClick={() => handleTriggerVoiceCall(lead)}
+                                disabled={callingLeadId === lead.id}
+                                className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                              >
+                                {callingLeadId === lead.id ? "Calling..." : "Trigger AI Call"}
+                              </button>
+                              <button
+                                onClick={() => handleOpenCallHistory(lead)}
+                                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                              >
+                                Call History
+                              </button>
+                            </div>
                             {lastCall && (
                               <span className="text-[11px] text-slate-500 max-w-xs line-clamp-2">
                                 [{lastCall.call_status}] {lastCall.ai_summary}
@@ -415,6 +472,100 @@ export default function DashboardPage() {
           )}
         </section>
       </main>
+
+      {historyLead && (
+        <div
+          className="fixed inset-0 z-50 flex justify-end"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="call-history-title"
+        >
+          <div
+            className="absolute inset-0 bg-slate-900/40"
+            onClick={handleCloseCallHistory}
+            aria-hidden="true"
+          />
+          <aside className="relative flex h-full w-full max-w-md flex-col bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
+              <div>
+                <h2 id="call-history-title" className="text-base font-semibold text-slate-900">
+                  Call History
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {historyLead.full_name} · {historyLead.phone}
+                </p>
+              </div>
+              <button
+                onClick={handleCloseCallHistory}
+                aria-label="Close call history"
+                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+              >
+                <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5" aria-hidden="true">
+                  <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+              {historyLoading ? (
+                <p className="text-sm text-slate-500">Loading call history...</p>
+              ) : historyError ? (
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {historyError}
+                </p>
+              ) : callLogs.length === 0 ? (
+                <p className="text-sm text-slate-500">No calls have been logged for this lead yet.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {callLogs.map((log) => (
+                    <li key={log.id} className="rounded-xl border border-slate-200 p-3.5 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
+                          {log.call_status}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {new Date(log.created_at).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <dl className="mt-3 space-y-2.5 text-sm">
+                        <div>
+                          <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                            Duration
+                          </dt>
+                          <dd className="text-slate-700">
+                            {log.duration_seconds != null ? `${log.duration_seconds}s` : "—"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                            AI Summary
+                          </dt>
+                          <dd className="whitespace-pre-wrap text-slate-700">{log.ai_summary || "—"}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                            Next Action
+                          </dt>
+                          <dd className="text-slate-700">{log.next_action || "—"}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                            Transcript
+                          </dt>
+                          <dd className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-2.5 text-xs leading-relaxed text-slate-600">
+                            {log.transcript || "—"}
+                          </dd>
+                        </div>
+                      </dl>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }
