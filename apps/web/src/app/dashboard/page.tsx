@@ -1,4 +1,5 @@
 "use client";
+import CsvImportCard from "../../components/CsvImportCard";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -486,6 +487,8 @@ export default function DashboardPage() {
             </div>
           )}
         </section>
+
+        <CsvImportCard />
       </main>
 
       {historyLead && (
