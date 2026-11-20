@@ -1,3 +1,4 @@
+import CsvImportCard from "../../components/CsvImportCard";
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -395,6 +396,7 @@ export default function DashboardClient() {
           </footer>
         </div>
       </div>
+      <CsvImportCard />
     </main>
   );
 }
