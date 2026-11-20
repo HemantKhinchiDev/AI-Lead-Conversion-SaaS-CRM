@@ -648,3 +648,7 @@ Q1 and Q6 from the earlier draft are resolved by this v0.2 update: the foundatio
   - **Auth:** Shared secret header (`x-webhook-secret`).
   - **Request:** `{ "call_id": "uuid", "call_status": "completed", "duration_seconds": 45, "transcript": "...", "ai_summary": "...", "next_action": "site_visit" }`
   - **Behavior:** Updates `call_logs` and optionally advances `leads.status` (e.g., to `contacted` or `site_visit`).
+- **`GET /api/tenant/call_logs/export`**
+  - **Auth:** Authenticated workspace session (`Supabase Auth`). The handler resolves `tenant_id` from the authenticated user's `public.users` membership; `tenant_id` is never read from query parameters or the request body.
+  - **Response:** `text/csv` attachment named `call_logs_<tenant_id>.csv`, containing the authenticated tenant's call log rows ordered by newest first.
+  - **Behavior:** Returns `401` without a valid session, `403` without a tenant membership, and `500` if the export query fails. Responses are not cached.
