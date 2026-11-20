@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sanitizeWebhookLeadStatus } from "../../../../lib/voiceGuard";
 
 export async function POST(req: Request) {
   try {
@@ -52,18 +53,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Call log not found" }, { status: 404 });
     }
 
-    const leadStatus =
-      typeof body?.lead_status === "string"
-        ? body.lead_status.trim().toLowerCase()
-        : "";
+    const leadStatus = sanitizeWebhookLeadStatus(body?.lead_status);
     const leadId = data.lead_id ? String(data.lead_id) : "";
 
     if (leadId && leadStatus) {
-      const { error: leadError } = await supabase
-        .from("leads")
-        .update({ status: leadStatus })
-        .eq("id", leadId)
-        .maybeSingle();
+      let leadQuery = supabase.from("leads").update({ status: leadStatus }).eq("id", leadId);
+      if (data.tenant_id) {
+        leadQuery = leadQuery.eq("tenant_id", String(data.tenant_id));
+      }
+      const { error: leadError } = await leadQuery.maybeSingle();
 
       if (leadError) {
         return NextResponse.json({ error: leadError.message }, { status: 500 });

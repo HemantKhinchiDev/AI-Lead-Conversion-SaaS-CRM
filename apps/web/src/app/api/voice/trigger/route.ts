@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { evaluateVoiceEligibility } from "../../../../lib/voiceGuard";
 
 export async function POST(req: Request) {
   try {
@@ -26,18 +27,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid user session" }, { status: 401 });
     }
 
+    const { data: membership, error: memErr } = await supabase
+      .from("users")
+      .select("tenant_id")
+      .eq("id", userData.user.id)
+      .maybeSingle();
+
+    const tenantId = typeof membership?.tenant_id === "string" ? membership.tenant_id : "";
+    if (memErr || !tenantId) {
+      return NextResponse.json({ error: "Tenant membership not found" }, { status: 403 });
+    }
+
     const { data: lead, error: leadErr } = await supabase
       .from("leads")
-      .select("id, full_name, phone, property_interest, consent_given")
+      .select("id, tenant_id, full_name, phone, property_interest, consent_given, status")
       .eq("id", leadId)
+      .eq("tenant_id", tenantId)
       .single();
 
     if (leadErr || !lead) {
       return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     }
 
-    if (!lead.consent_given) {
-      return NextResponse.json({ error: "Blocked: Explicit consent not verified" }, { status: 403 });
+    const guard = evaluateVoiceEligibility(lead, tenantId);
+    if (!guard.allowed) {
+      return NextResponse.json({ error: guard.error }, { status: guard.status });
     }
 
     const webhookUrl = process.env.VOICE_AGENT_WEBHOOK_URL;
@@ -47,6 +61,7 @@ export async function POST(req: Request) {
       .from("call_logs")
       .insert([
         {
+          tenant_id: tenantId,
           user_id: userData.user.id,
           lead_id: lead.id,
           provider: isSandbox ? "sandbox_voice_sim" : "vapi_or_n8n",
@@ -72,13 +87,14 @@ export async function POST(req: Request) {
       await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ call_id: callRow.id, lead }),
+        body: JSON.stringify({ call_id: callRow.id, tenant_id: tenantId, lead }),
       }).catch(() => null);
     } else {
       await supabase
         .from("leads")
         .update({ status: "contacted", updated_at: new Date().toISOString() })
-        .eq("id", lead.id);
+        .eq("id", lead.id)
+        .eq("tenant_id", tenantId);
     }
 
     return NextResponse.json({
