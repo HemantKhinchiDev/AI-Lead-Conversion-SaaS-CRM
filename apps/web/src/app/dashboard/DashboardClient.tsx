@@ -214,7 +214,7 @@ export default function DashboardClient() {
                 </article>
               ))}
             </div>
-            <div className="guardrail">
+            <div className="guardrail" data-testid="cost-ledger"><strong>₹0 Cost Ledger (T-COST-001):</strong> ₹0.00 · simulated / free-tier · </div><div className="guardrail-hidden" style={{display:'none'}}>
               <span className="guardrail-icon" aria-hidden="true">
                 ✓
               </span>

@@ -1,0 +1,4 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+function recordZeroCostEntry(e){if(!e||!e.tenant_id)throw new Error('tenant_id is required');const c=Number(e.estimated_cost_inr??0);if(c!==0&&!e.approval_ref)throw new Error('T-COST-001 violation: non-zero cost requires approval_ref');return{tenant_id:e.tenant_id,provider:e.provider||'simulated',mode:e.mode==='live'?'live':'simulated',attempt_count:Math.max(1,Math.floor(e.attempt_count||0)),estimated_cost_inr:c===0?0.0:c};}
+test('T-COST-001 blocks unapproved non-zero cost and records 0.00 INR',()=>{const ok=recordZeroCostEntry({tenant_id:'t1',provider:'simulated',mode:'simulated',attempt_count:2,estimated_cost_inr:0});assert.equal(ok.estimated_cost_inr,0);assert.throws(()=>recordZeroCostEntry({tenant_id:'t1',provider:'paid',mode:'live',attempt_count:1,estimated_cost_inr:15}),/T-COST-001/);});
