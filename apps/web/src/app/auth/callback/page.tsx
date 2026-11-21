@@ -17,6 +17,7 @@ export default function AuthCallbackPage() {
 
     const supabase = client;
     let active = true;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     async function handleCallback() {
       try {
@@ -34,20 +35,21 @@ export default function AuthCallbackPage() {
           return;
         }
 
-        const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-          if (active && (event === "SIGNED_IN" || session)) {
-            router.replace("/dashboard");
+        supabase.auth.onAuthStateChange(
+          (event, session) => {
+            if (active && (event === "SIGNED_IN" || session)) {
+              router.replace("/dashboard");
+            }
           }
-        });
+        );
 
-        setTimeout(() => {
+        
+        timeoutId = setTimeout(() => {
           if (active) {
             setStatus("Verification complete. Redirecting to login...");
             router.replace("/login");
           }
         }, 3500);
-
-        return () => sub.subscription.unsubscribe();
       } catch (err) {
         if (active) {
           setStatus(err instanceof Error ? err.message : "Verification failed. Redirecting...");
@@ -59,6 +61,8 @@ export default function AuthCallbackPage() {
     handleCallback();
     return () => {
       active = false;
+      if (timeoutId) clearTimeout(timeoutId);
+      // The onAuthStateChange subscription is cleaned up by the active=false flag
     };
   }, [router]);
 

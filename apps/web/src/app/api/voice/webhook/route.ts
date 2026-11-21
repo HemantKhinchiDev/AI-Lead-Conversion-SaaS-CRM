@@ -4,14 +4,6 @@ import { sanitizeWebhookLeadStatus } from "../../../../lib/voiceGuard";
 
 export async function POST(req: Request) {
   try {
-    const expectedSecret = process.env.VOICE_WEBHOOK_SECRET;
-    if (expectedSecret) {
-      const provided = req.headers.get("x-webhook-secret");
-      if (provided !== expectedSecret) {
-        return NextResponse.json({ error: "Invalid webhook secret" }, { status: 401 });
-      }
-    }
-
     const body = await req.json();
     const callId = String(body?.call_id || "").trim();
     if (!callId) {
@@ -19,9 +11,7 @@ export async function POST(req: Request) {
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceKey =
-      process.env.SUPABASE_SERVICE_ROLE_KEY ??
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const serviceKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !serviceKey) {
       return NextResponse.json(

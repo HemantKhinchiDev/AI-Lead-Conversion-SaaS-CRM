@@ -1,5 +1,6 @@
 "use client";
 import CsvImportCard from "../../components/CsvImportCard";
+import DashboardClient from "./DashboardClient";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -16,11 +17,6 @@ type Lead = {
   created_at: string;
 };
 
-type CallSummary = {
-  call_status: string;
-  ai_summary: string | null;
-};
-
 type CallLog = {
   id: string;
   call_status: string;
@@ -29,6 +25,11 @@ type CallLog = {
   ai_summary: string | null;
   next_action: string | null;
   created_at: string;
+};
+
+type CallSummary = {
+  call_status: string;
+  ai_summary: string | null;
 };
 
 const STATUS_OPTIONS: Lead["status"][] = [
@@ -42,12 +43,15 @@ const STATUS_OPTIONS: Lead["status"][] = [
 
 export default function DashboardPage() {
   const router = useRouter();
-  const supabase = getSupabaseClient()!;
+  const supabase = getSupabaseClient();
+
+  if (!supabase) {
+    router.replace("/login");
+    return null;
+  }
 
   const [userEmail, setUserEmail] = useState<string>("");
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [callMap, setCallMap] = useState<Record<string, CallSummary>>({});
-  const [callingLeadId, setCallingLeadId] = useState<string | null>(null);
+const [leads, setLeads] = useState<Lead[]>([]);
   const [historyLead, setHistoryLead] = useState<Lead | null>(null);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
   const [historyLoading, setHistoryLoading] = useState<boolean>(false);
@@ -58,6 +62,7 @@ export default function DashboardPage() {
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [successMsg, setSuccessMsg] = useState<string>("");
   const historyRequestRef = useRef(0);
+  const [callMap, setCallMap] = useState<Record<string, CallSummary>>({});
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -68,7 +73,7 @@ export default function DashboardPage() {
   async function loadUserAndLeads() {
     setLoading(true);
     setErrorMsg("");
-    const { data: authData, error: authErr } = await supabase.auth.getUser();
+    const { data: authData, error: authErr } = await supabase!.auth.getUser();
     if (authErr || !authData?.user) {
       router.replace("/login");
       return;
@@ -76,8 +81,8 @@ export default function DashboardPage() {
     setUserEmail(authData.user.email || "");
 
     const [{ data, error }, { data: logsData }] = await Promise.all([
-      supabase.from("leads").select("*").order("created_at", { ascending: false }),
-      supabase.from("call_logs").select("lead_id, call_status, ai_summary").order("created_at", { ascending: false }),
+      supabase!.from("leads").select("*").order("created_at", { ascending: false }),
+      supabase!.from("call_logs").select("lead_id, call_status, ai_summary").order("created_at", { ascending: false }),
     ]);
 
     if (error) {
@@ -131,12 +136,13 @@ export default function DashboardPage() {
       return;
     }
     setSubmitting(true);
-    const { data: authData } = await supabase.auth.getUser();
+    const { data: authData } = await supabase!.auth.getUser();
     if (!authData?.user) {
       router.replace("/login");
       return;
     }
 
+if (!supabase) return;
     const { data, error } = await supabase
       .from("leads")
       .insert([
@@ -169,51 +175,13 @@ export default function DashboardPage() {
     setSuccessMsg("Lead added to workspace.");
   }
 
-  async function handleTriggerVoiceCall(lead: Lead) {
-    setErrorMsg("");
-    setSuccessMsg("");
-    setCallingLeadId(lead.id);
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      if (!token) {
-        router.replace("/login");
-        return;
-      }
-      const res = await fetch("/api/voice/trigger", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ lead_id: lead.id }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setErrorMsg(json.error || "Failed to trigger AI call");
-        return;
-      }
-      setCallMap((prev) => ({
-        ...prev,
-        [lead.id]: { call_status: json.status, ai_summary: json.ai_summary },
-      }));
-      if (json.mode === "sandbox") {
-        setLeads((prev) =>
-          prev.map((l) => (l.id === lead.id && l.status === "new" ? { ...l, status: "contacted" } : l))
-        );
-      }
-      setSuccessMsg(`AI Voice Call (${json.status}) completed for ${lead.full_name}.`);
-    } finally {
-      setCallingLeadId(null);
-    }
-  }
-
   async function handleOpenCallHistory(lead: Lead) {
     const requestId = ++historyRequestRef.current;
     setHistoryLead(lead);
     setCallLogs([]);
     setHistoryError("");
     setHistoryLoading(true);
+if (!supabase) return;
 
     const { data, error } = await supabase
       .from("call_logs")
@@ -257,6 +225,7 @@ export default function DashboardPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [historyLead]);
 
+if (!supabase) return;
   async function handleStatusChange(id: string, newStatus: Lead["status"]) {
     setErrorMsg("");
     const { error } = await supabase
@@ -273,7 +242,7 @@ export default function DashboardPage() {
 
   async function handleDeleteLead(id: string) {
     setErrorMsg("");
-    const { error } = await supabase.from("leads").delete().eq("id", id);
+    const { error } = await supabase!.from("leads").delete().eq("id", id);
     if (error) {
       setErrorMsg(error.message);
       return;
@@ -282,7 +251,7 @@ export default function DashboardPage() {
   }
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
+    await supabase!.auth.signOut();
     router.replace("/login");
   }
 
@@ -424,7 +393,6 @@ export default function DashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredLeads.map((lead) => {
-                    const lastCall = callMap[lead.id];
                     return (
                       <tr key={lead.id}>
                         <td className="py-3 pr-4">
@@ -451,24 +419,12 @@ export default function DashboardPage() {
                           <div className="flex flex-col gap-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <button
-                                onClick={() => handleTriggerVoiceCall(lead)}
-                                disabled={callingLeadId === lead.id}
-                                className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-                              >
-                                {callingLeadId === lead.id ? "Calling..." : "Trigger AI Call"}
-                              </button>
-                              <button
                                 onClick={() => handleOpenCallHistory(lead)}
                                 className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
                               >
                                 Call History
                               </button>
                             </div>
-                            {lastCall && (
-                              <span className="text-[11px] text-slate-500 max-w-xs line-clamp-2">
-                                [{lastCall.call_status}] {lastCall.ai_summary}
-                              </span>
-                            )}
                           </div>
                         </td>
                         <td className="py-3 text-right">
@@ -490,6 +446,8 @@ export default function DashboardPage() {
 
         <CsvImportCard />
       </main>
+
+      <DashboardClient />
 
       {historyLead && (
         <div

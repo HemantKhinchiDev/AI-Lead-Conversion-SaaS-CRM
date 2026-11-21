@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "playwright:test": "npx playwright test",
+    "playwright:install": "npx playwright install --with-deps",
+    "playwright:deploy": "npx playwright test --project=chromium"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.100.0",

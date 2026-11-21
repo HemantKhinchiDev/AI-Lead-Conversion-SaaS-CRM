@@ -118,3 +118,32 @@ def test_signup_creates_one_tenant_and_owner_membership() -> None:
 
 def test_home_page_links_to_login() -> None:
     assert 'href="/login"' in _read(HOME)
+
+
+def test_login_handles_missing_credentials() -> None:
+    page = _read(LOGIN)
+    assert "signInWithPassword" in page
+    assert 'type="password"' in page
+    assert 'type="email"' in page
+
+
+def test_supabase_browser_client_no_service_role() -> None:
+    library = _read(SUPABASE_LIB)
+    assert "createClient" in library
+    assert "NEXT_PUBLIC_SUPABASE_URL" in library
+    assert "NEXT_PUBLIC_SUPABASE_ANON_KEY" in library
+    assert "SUPABASE_SERVICE_ROLE_KEY" not in library
+    assert "DATABASE_URL" not in library
+
+    env_references = set(re.findall(r"process\.env\.([A-Z0-9_]+)", library))
+    assert env_references == {"NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"}
+
+
+def test_no_service_role_in_component_files() -> None:
+    sources = "\n".join(
+        _read(path)
+        for path in (WEB / "src").rglob("*")
+        if path.suffix in {".ts", ".tsx"} or path.name == ".env.example"
+    )
+    assert "SUPABASE_SERVICE_ROLE_KEY" not in sources
+    assert "service_role" not in sources

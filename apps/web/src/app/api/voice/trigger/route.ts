@@ -54,8 +54,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: guard.error }, { status: guard.status });
     }
 
-    const webhookUrl = process.env.VOICE_AGENT_WEBHOOK_URL;
-    const isSandbox = !webhookUrl;
+    const isSandbox = true;
 
     const { data: callRow, error: insertErr } = await supabase
       .from("call_logs")
@@ -67,13 +66,9 @@ export async function POST(req: Request) {
           provider: isSandbox ? "sandbox_voice_sim" : "vapi_or_n8n",
           call_status: isSandbox ? "completed" : "queued",
           duration_seconds: isSandbox ? 42 : 0,
-          transcript: isSandbox
-            ? `AI Agent: Namaste ${lead.full_name}, following up on your ${lead.property_interest || "property"} inquiry. Lead: Yes, interested in a site visit this weekend.`
-            : null,
-          ai_summary: isSandbox
-            ? `Consent verified. ${lead.full_name} confirmed interest in ${lead.property_interest || "property"} and requested weekend site visit.`
-            : "Outbound AI call queued.",
-          next_action: isSandbox ? "site_visit" : "awaiting_webhook",
+          transcript: `AI Agent: Namaste ${lead.full_name}, following up on your ${lead.property_interest || "property"} inquiry. Lead: Yes, interested in a site visit this weekend.`,
+          ai_summary: `Consent verified. ${lead.full_name} confirmed interest in ${lead.property_interest || "property"} and requested weekend site visit.`,
+          next_action: "site_visit",
         },
       ])
       .select()
@@ -83,25 +78,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
 
-    if (webhookUrl) {
-      await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ call_id: callRow.id, tenant_id: tenantId, lead }),
-      }).catch(() => null);
-    } else {
-      await supabase
-        .from("leads")
-        .update({ status: "contacted", updated_at: new Date().toISOString() })
-        .eq("id", lead.id)
-        .eq("tenant_id", tenantId);
-    }
+    await supabase
+      .from("leads")
+      .update({ status: "contacted", updated_at: new Date().toISOString() })
+      .eq("id", lead.id)
+      .eq("tenant_id", tenantId);
 
     return NextResponse.json({
       call_id: callRow.id,
       status: callRow.call_status,
       ai_summary: callRow.ai_summary,
-      mode: isSandbox ? "sandbox" : "live_webhook",
+      mode: "sandbox",
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Voice trigger failed";

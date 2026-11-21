@@ -41,7 +41,7 @@ export default function LoginPage() {
     return () => {
       active = false;
     };
-  }, [configured]);
+  }, []);
 
   function switchMode(nextMode: AuthMode) {
     setMode(nextMode);
