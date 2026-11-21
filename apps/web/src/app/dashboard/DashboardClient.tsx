@@ -1,3 +1,4 @@
+"use client"
 import CsvImportCard from "../../components/CsvImportCard";
 "use client";
 
