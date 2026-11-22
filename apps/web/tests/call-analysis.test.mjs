@@ -183,7 +183,7 @@ test("dashboard renders outcome badges, callback time, and AI summary in the lea
     "Callback Time",
     "AI Summary",
     "OUTCOME_LABELS",
-    "OUTCOME_STYLES",
+    "data-outcome",
     "formatCallbackTime",
     'data-testid="lead-outcome"',
     'data-testid="lead-callback"',

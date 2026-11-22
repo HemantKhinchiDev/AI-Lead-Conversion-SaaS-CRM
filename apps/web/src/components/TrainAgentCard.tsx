@@ -109,19 +109,21 @@ export default function TrainAgentCard() {
   const faqs = knowledgeBase?.faqs ?? [];
 
   return (
-    <section className="section" id="train-agent" aria-labelledby="train-agent-title" data-testid="train-agent">
-      <div className="section-head">
-        <h2 className="section-title" id="train-agent-title">
-          Train AI Agent
-        </h2>
-        <p className="section-note">
-          Works for any business · website + map context · grounded FAQs and call script
-        </p>
+    <section className="dashboard-card" id="train-agent" aria-labelledby="train-agent-title" data-testid="train-agent">
+      <div className="card-head">
+        <div>
+          <h2 className="card-title" id="train-agent-title">
+            Train AI Agent
+          </h2>
+          <p className="card-subtitle">
+            Works for any business · website + map context · grounded FAQs and call script
+          </p>
+        </div>
       </div>
 
-      <form className="lead-form" onSubmit={handleSubmit}>
-        <div className="form-grid">
-          <label className="field">
+      <form className="dash-form" onSubmit={handleSubmit}>
+        <div className="dash-grid">
+          <label className="dash-field">
             <span>Business name</span>
             <input
               value={businessName}
@@ -130,7 +132,7 @@ export default function TrainAgentCard() {
               maxLength={200}
             />
           </label>
-          <label className="field">
+          <label className="dash-field">
             <span>Website URL</span>
             <input
               type="url"
@@ -140,7 +142,7 @@ export default function TrainAgentCard() {
               maxLength={2048}
             />
           </label>
-          <label className="field">
+          <label className="dash-field">
             <span>Google Map link</span>
             <input
               type="url"
@@ -150,7 +152,7 @@ export default function TrainAgentCard() {
               maxLength={2048}
             />
           </label>
-          <label className="field">
+          <label className="dash-field">
             <span>Call goal</span>
             <input
               value={callGoal}
@@ -159,7 +161,7 @@ export default function TrainAgentCard() {
               maxLength={500}
             />
           </label>
-          <label className="field">
+          <label className="dash-field">
             <span>Agent language</span>
             <select value={language} onChange={(event) => setLanguage(event.target.value)}>
               <option value="en-IN">English (India)</option>
@@ -169,9 +171,10 @@ export default function TrainAgentCard() {
           </label>
         </div>
 
-        <label className="field">
+        <label className="dash-field">
           <span>Script editor</span>
           <textarea
+            className="dash-input"
             value={customScript}
             onChange={(event) => setCustomScript(event.target.value)}
             placeholder="Optional: paste the opening lines your AI agent should use."
@@ -180,29 +183,29 @@ export default function TrainAgentCard() {
           />
         </label>
 
-        <button className="button" type="submit" disabled={submitting}>
+        <button className="btn btn-primary" type="submit" disabled={submitting}>
           {submitting ? "Training…" : "Train AI Agent"}
         </button>
       </form>
 
       {error && (
-        <p className="form-message" data-state="error" role="alert">
+        <p className="dash-message" data-state="error" role="alert">
           {error}
         </p>
       )}
       {status && (
-        <p className="form-message" data-state="success" role="status">
+        <p className="dash-message" data-state="success" role="status">
           {status}
         </p>
       )}
       {result?.warnings && result.warnings.length > 0 && (
-        <p className="form-message" role="status">
+        <p className="dash-message" role="status">
           {result.warnings.join(" ")}
         </p>
       )}
 
       {knowledgeBase && (
-        <div className="train-result">
+        <div className="dash-result">
           <h3>{knowledgeBase.business_name || "Knowledge base"}</h3>
           {profile?.industry && <p>Industry: {profile.industry}</p>}
           {profile?.summary && <p>{profile.summary}</p>}

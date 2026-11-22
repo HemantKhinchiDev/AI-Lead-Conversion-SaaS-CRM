@@ -71,14 +71,18 @@ export default function CsvImportCard() {
   }
 
   return (
-    <section className="section" id="import-csv" data-testid="csv-import">
-      <div className="section-head">
-        <h2 className="section-title">CSV Lead Import (Phase 3)</h2>
-        <p className="section-note">
-          Normalizes +91 phones, flags missing consent as review_required, and excludes suppressed rows
-        </p>
+    <section className="dashboard-card" id="import-csv" data-testid="csv-import" aria-labelledby="csv-import-title">
+      <div className="card-head">
+        <div>
+          <h2 className="card-title" id="csv-import-title">
+            CSV Lead Import
+          </h2>
+          <p className="card-subtitle">
+            Normalizes +91 phones, flags missing consent as review_required, and excludes suppressed rows
+          </p>
+        </div>
       </div>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="dash-upload">
         <input
           type="file"
           accept=".csv,text/csv"
@@ -87,11 +91,11 @@ export default function CsvImportCard() {
             void handleFileChange(e.target.files ? e.target.files[0] : undefined);
           }}
         />
-        {fileName ? <span className="text-xs font-medium">File: {fileName}</span> : null}
-        {statusMsg ? <span className="text-xs opacity-80">{statusMsg}</span> : null}
+        {fileName ? <span className="lead-name">File: {fileName}</span> : null}
+        {statusMsg ? <span className="muted">{statusMsg}</span> : null}
       </div>
       {summary ? (
-        <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-6">
+        <div className="dash-summary">
           <div>Total: <strong>{summary.total}</strong></div>
           <div>Eligible: <strong>{summary.eligible}</strong></div>
           <div>Review: <strong>{summary.review_required}</strong></div>

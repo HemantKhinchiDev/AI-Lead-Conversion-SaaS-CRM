@@ -141,24 +141,26 @@ export default function SheetSyncCard() {
   const counts = summary?.summary;
 
   return (
-    <section className="section" id="sheets-sync" data-testid="sheets-sync" aria-labelledby="sheets-sync-title">
-      <div className="section-head">
-        <h2 className="section-title" id="sheets-sync-title">
-          Google Sheets Sync
-        </h2>
-        <p className="section-note">
-          Two-way lead sync · +91 numbers normalized · call outcomes written back to the imported row
-        </p>
+    <section className="dashboard-card" id="sheets-sync" data-testid="sheets-sync" aria-labelledby="sheets-sync-title">
+      <div className="card-head">
+        <div>
+          <h2 className="card-title" id="sheets-sync-title">
+            Google Sheets Sync
+          </h2>
+          <p className="card-subtitle">
+            Two-way lead sync · +91 numbers normalized · call outcomes written back to the imported row
+          </p>
+        </div>
       </div>
 
       <form
-        className="lead-form"
+        className="dash-form"
         onSubmit={(event) => {
           event.preventDefault();
           void handleImport();
         }}
       >
-        <label className="field">
+        <label className="dash-field">
           <span>Google Sheet URL</span>
           <input
             type="url"
@@ -168,27 +170,27 @@ export default function SheetSyncCard() {
             maxLength={2048}
           />
         </label>
-        <div className="form-grid">
-          <button className="button" type="submit" disabled={busy !== ""}>
+        <div className="dash-grid">
+          <button className="btn btn-primary" type="submit" disabled={busy !== ""}>
             {busy === "import" ? "Importing…" : "Import from Google Sheet"}
           </button>
-          <button className="button" type="button" disabled={busy !== ""} onClick={() => void handleCsvExport()}>
+          <button className="btn btn-secondary" type="button" disabled={busy !== ""} onClick={() => void handleCsvExport()}>
             {busy === "csv" ? "Exporting…" : "Export to CSV"}
           </button>
-          <button className="button" type="button" disabled={busy !== ""} onClick={() => void handleSheetExport()}>
+          <button className="btn btn-secondary" type="button" disabled={busy !== ""} onClick={() => void handleSheetExport()}>
             {busy === "sheet" ? "Exporting…" : "Export to Google Sheet"}
           </button>
         </div>
       </form>
 
       {message && (
-        <p className="form-message" data-state={messageState} role={messageState === "error" ? "alert" : "status"}>
+        <p className="dash-message" data-state={messageState} role={messageState === "error" ? "alert" : "status"}>
           {message}
         </p>
       )}
 
       {counts && (
-        <div className="train-result">
+        <div className="dash-result">
           <p>
             Rows: {counts.total} · Eligible: {counts.eligible} · Review: {counts.review_required} ·
             Excluded: {counts.excluded} · Duplicates: {counts.duplicates} · Invalid: {counts.invalid}

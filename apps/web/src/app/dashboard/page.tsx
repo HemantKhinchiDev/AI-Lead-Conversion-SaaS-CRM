@@ -3,7 +3,6 @@ import CsvImportCard from "../../components/CsvImportCard";
 import TrainAgentCard from "../../components/TrainAgentCard";
 import VoiceDemoModal from "../../components/VoiceDemoModal";
 import SheetSyncCard from "../../components/SheetSyncCard";
-import DashboardClient from "./DashboardClient";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -52,13 +51,6 @@ const OUTCOME_LABELS: Record<CallOutcome, string> = {
   NO_ANSWER: "No answer",
 };
 
-const OUTCOME_STYLES: Record<CallOutcome, string> = {
-  INTERESTED: "bg-emerald-100 text-emerald-700",
-  NOT_INTERESTED: "bg-slate-100 text-slate-600",
-  CALLBACK_REQUESTED: "bg-amber-100 text-amber-700",
-  NO_ANSWER: "bg-rose-100 text-rose-700",
-};
-
 function formatCallbackTime(value: string | null): string {
   if (!value) return "—";
   const date = new Date(value);
@@ -87,7 +79,7 @@ export default function DashboardPage() {
   }
 
   const [userEmail, setUserEmail] = useState<string>("");
-const [leads, setLeads] = useState<Lead[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [historyLead, setHistoryLead] = useState<Lead | null>(null);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
   const [historyLoading, setHistoryLoading] = useState<boolean>(false);
@@ -193,7 +185,7 @@ const [leads, setLeads] = useState<Lead[]>([]);
       return;
     }
 
-if (!supabase) return;
+    if (!supabase) return;
     const { data, error } = await supabase
       .from("leads")
       .insert([
@@ -292,7 +284,7 @@ if (!supabase) return;
     setCallLogs([]);
     setHistoryError("");
     setHistoryLoading(true);
-if (!supabase) return;
+    if (!supabase) return;
 
     const { data, error } = await supabase
       .from("call_logs")
@@ -341,7 +333,7 @@ if (!supabase) return;
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [historyLead]);
 
-if (!supabase) return;
+  if (!supabase) return;
   async function handleStatusChange(id: string, newStatus: Lead["status"]) {
     setErrorMsg("");
     const { error } = await supabase!
@@ -372,343 +364,342 @@ if (!supabase) return;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">AI Lead Conversion</h1>
-          <p className="text-xs text-slate-500">
-            Consent-first workspace {userEmail ? `• ${userEmail}` : ""}
+    <div className="dashboard-shell">
+      <header className="dashboard-header">
+        <div className="dashboard-brand">
+          <h1>AI Lead Conversion</h1>
+          <p>
+            Consent-first workspace{userEmail ? ` · ${userEmail}` : ""}
           </p>
         </div>
-        <button
-          onClick={handleSignOut}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
-        >
-          Sign out
-        </button>
+        <div className="dashboard-header-actions">
+          <span className="cost-chip" data-testid="cost-ledger">
+            ₹0.00 · simulated / free-tier
+          </span>
+          <button onClick={handleSignOut} className="btn btn-secondary">
+            Sign out
+          </button>
+        </div>
       </header>
 
-      <main className="mx-auto max-w-6xl p-6 space-y-6">
-        {errorMsg && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {errorMsg}
-          </div>
-        )}
-        {successMsg && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            {successMsg}
-          </div>
-        )}
-
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-medium text-slate-500">Total Leads</div>
-            <div className="mt-1 text-2xl font-bold text-slate-900">{stats.total}</div>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-medium text-slate-500">New Leads</div>
-            <div className="mt-1 text-2xl font-bold text-blue-600">{stats.newCount}</div>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-medium text-slate-500">Qualified / Site Visit</div>
-            <div className="mt-1 text-2xl font-bold text-emerald-600">{stats.qualifiedCount}</div>
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-base font-semibold mb-4">Add New Lead</h2>
-          <form onSubmit={handleCreateLead} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Full Name *</label>
-              <input
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="e.g. Rajesh Sharma"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Phone Number *</label>
-              <input
-                required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. +91 98765 43210"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Email (Optional)</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="rajesh@example.com"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Interest / Requirement</label>
-              <input
-                value={propertyInterest}
-                onChange={(e) => setPropertyInterest(e.target.value)}
-                placeholder="e.g. 3BHK SG Highway"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-4 pt-2">
-              <label className="flex items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={consentGiven}
-                  onChange={(e) => setConsentGiven(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300"
-                />
-                <span>Explicit contact & AI follow-up consent verified</span>
-              </label>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-              >
-                {submitting ? "Saving..." : "Add Lead"}
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <TrainAgentCard />
-
-        <VoiceDemoModal />
-
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h2 className="text-base font-semibold">Workspace Leads ({filteredLeads.length})</h2>
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search name, phone, or interest..."
-              className="w-full sm:w-72 rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-            />
-          </div>
-
-          {loading ? (
-            <p className="text-sm text-slate-500">Loading leads...</p>
-          ) : filteredLeads.length === 0 ? (
-            <p className="text-sm text-slate-500">No leads match your view.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2.5 pr-4">Lead</th>
-                    <th className="py-2.5 pr-4">Phone</th>
-                    <th className="py-2.5 pr-4">Interest</th>
-                    <th className="py-2.5 pr-4">Status</th>
-                    <th className="py-2.5 pr-4">Outcome</th>
-                    <th className="py-2.5 pr-4">Callback Time</th>
-                    <th className="py-2.5 pr-4">AI Summary</th>
-                    <th className="py-2.5 pr-4">AI Voice Agent</th>
-                    <th className="py-2.5 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredLeads.map((lead) => {
-                    const summary = callMap[lead.id];
-                    const outcome = lead.call_outcome ?? summary?.call_outcome ?? null;
-                    const callbackDatetime =
-                      lead.callback_datetime ?? summary?.callback_datetime ?? null;
-                    const aiSummary = lead.ai_summary ?? summary?.ai_summary ?? null;
-                    return (
-                      <tr key={lead.id}>
-                        <td className="py-3 pr-4">
-                          <div className="font-medium text-slate-900">{lead.full_name}</div>
-                          {lead.email && <div className="text-xs text-slate-500">{lead.email}</div>}
-                        </td>
-                        <td className="py-3 pr-4 font-mono text-xs">{lead.phone}</td>
-                        <td className="py-3 pr-4 text-slate-600">{lead.property_interest || "—"}</td>
-                        <td className="py-3 pr-4">
-                          <select
-                            aria-label={`Status for ${lead.full_name}`}
-                            value={lead.status}
-                            onChange={(e) => handleStatusChange(lead.id, e.target.value as Lead["status"])}
-                            className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium"
-                          >
-                            {STATUS_OPTIONS.map((st) => (
-                              <option key={st} value={st}>
-                                {st.replace("_", " ").toUpperCase()}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="py-3 pr-4">
-                          {outcome ? (
-                            <span
-                              className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${OUTCOME_STYLES[outcome]}`}
-                              data-testid="lead-outcome"
-                              data-outcome={outcome}
-                            >
-                              {OUTCOME_LABELS[outcome]}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-slate-400" data-testid="lead-outcome">
-                              —
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 pr-4 text-xs text-slate-600" data-testid="lead-callback">
-                          {formatCallbackTime(callbackDatetime)}
-                        </td>
-                        <td className="py-3 pr-4 text-xs text-slate-600">
-                          <span
-                            className="inline-block max-w-xs truncate align-bottom"
-                            title={aiSummary || undefined}
-                            data-testid="lead-ai-summary"
-                          >
-                            {aiSummary || "—"}
-                          </span>
-                        </td>
-                        <td className="py-3 pr-4">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <button
-                                onClick={() => handleTriggerVoiceCall(lead)}
-                                disabled={callingLeadId === lead.id}
-                                className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-                              >
-                                {callingLeadId === lead.id ? "Calling..." : "Trigger AI Call"}
-                              </button>
-                              <button
-                                onClick={() => handleOpenCallHistory(lead)}
-                                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                              >
-                                Call History
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 text-right">
-                          <button
-                            onClick={() => handleDeleteLead(lead.id)}
-                            className="text-xs font-medium text-red-600 hover:underline"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+      <main className="dashboard-main">
+        <div className="dashboard-content">
+          {errorMsg && (
+            <div className="dashboard-alert" data-state="error" role="alert">
+              {errorMsg}
             </div>
           )}
-        </section>
+          {successMsg && (
+            <div className="dashboard-alert" data-state="success" role="status">
+              {successMsg}
+            </div>
+          )}
 
-        <CsvImportCard />
-        <SheetSyncCard />
+          <section className="stat-grid" aria-label="Workspace summary">
+            <div className="stat-card">
+              <p className="stat-label">Total Leads</p>
+              <p className="stat-value">{stats.total}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-label">New Leads</p>
+              <p className="stat-value stat-value--blue">{stats.newCount}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-label">Qualified / Site Visit</p>
+              <p className="stat-value stat-value--green">{stats.qualifiedCount}</p>
+            </div>
+          </section>
+
+          <div className="dashboard-grid">
+            <section className="dashboard-card" aria-labelledby="add-lead-title">
+              <div className="card-head">
+                <div>
+                  <h2 className="card-title" id="add-lead-title">
+                    Add New Lead
+                  </h2>
+                  <p className="card-subtitle">
+                    Record a consented enquiry before any AI call is attempted.
+                  </p>
+                </div>
+              </div>
+              <form onSubmit={handleCreateLead} className="dash-form">
+                <div className="dash-grid">
+                  <label className="dash-field">
+                    <span>Full Name *</span>
+                    <input
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="e.g. Rajesh Sharma"
+                      className="dash-input"
+                    />
+                  </label>
+                  <label className="dash-field">
+                    <span>Phone Number *</span>
+                    <input
+                      required
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="e.g. +91 98765 43210"
+                      className="dash-input"
+                    />
+                  </label>
+                  <label className="dash-field">
+                    <span>Email (Optional)</span>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="rajesh@example.com"
+                      className="dash-input"
+                    />
+                  </label>
+                  <label className="dash-field">
+                    <span>Interest / Requirement</span>
+                    <input
+                      value={propertyInterest}
+                      onChange={(e) => setPropertyInterest(e.target.value)}
+                      placeholder="e.g. 3BHK SG Highway"
+                      className="dash-input"
+                    />
+                  </label>
+                </div>
+                <div className="form-actions">
+                  <label className="consent-label">
+                    <input
+                      type="checkbox"
+                      checked={consentGiven}
+                      onChange={(e) => setConsentGiven(e.target.checked)}
+                    />
+                    <span>Explicit contact &amp; AI follow-up consent verified</span>
+                  </label>
+                  <button type="submit" disabled={submitting} className="btn btn-primary">
+                    {submitting ? "Saving..." : "Add Lead"}
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <TrainAgentCard />
+
+            <VoiceDemoModal />
+
+            <CsvImportCard />
+
+            <div className="dashboard-grid-full">
+              <SheetSyncCard />
+            </div>
+
+            <div className="dashboard-grid-full">
+              <section className="dashboard-card" aria-labelledby="leads-title">
+                <div className="card-head">
+                  <div>
+                    <h2 className="card-title" id="leads-title">
+                      Workspace Leads ({filteredLeads.length})
+                    </h2>
+                    <p className="card-subtitle">
+                      Update status, review call outcomes and trigger consented AI calls.
+                    </p>
+                  </div>
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search name, phone, or interest..."
+                    aria-label="Search leads"
+                    className="dash-input lead-search"
+                  />
+                </div>
+
+                {loading ? (
+                  <p className="muted">Loading leads...</p>
+                ) : filteredLeads.length === 0 ? (
+                  <p className="muted">No leads match your view.</p>
+                ) : (
+                  <div className="lead-table-wrap">
+                    <table className="lead-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Lead</th>
+                          <th scope="col">Phone</th>
+                          <th scope="col">Interest</th>
+                          <th scope="col">Status</th>
+                          <th scope="col">Outcome</th>
+                          <th scope="col">Callback Time</th>
+                          <th scope="col">AI Summary</th>
+                          <th scope="col">AI Voice Agent</th>
+                          <th scope="col">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredLeads.map((lead) => {
+                          const summary = callMap[lead.id];
+                          const outcome = lead.call_outcome ?? summary?.call_outcome ?? null;
+                          const callbackDatetime =
+                            lead.callback_datetime ?? summary?.callback_datetime ?? null;
+                          const aiSummary = lead.ai_summary ?? summary?.ai_summary ?? null;
+                          return (
+                            <tr key={lead.id}>
+                              <td>
+                                <span className="lead-name">{lead.full_name}</span>
+                                {lead.email && <span className="lead-email">{lead.email}</span>}
+                              </td>
+                              <td className="lead-mono">{lead.phone}</td>
+                              <td>{lead.property_interest || "—"}</td>
+                              <td>
+                                <select
+                                  aria-label={`Status for ${lead.full_name}`}
+                                  value={lead.status}
+                                  onChange={(e) => handleStatusChange(lead.id, e.target.value as Lead["status"])}
+                                  className="status-select"
+                                >
+                                  {STATUS_OPTIONS.map((st) => (
+                                    <option key={st} value={st}>
+                                      {st.replace("_", " ").toUpperCase()}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td>
+                                {outcome ? (
+                                  <span
+                                    className="outcome-badge"
+                                    data-testid="lead-outcome"
+                                    data-outcome={outcome}
+                                  >
+                                    {OUTCOME_LABELS[outcome]}
+                                  </span>
+                                ) : (
+                                  <span className="muted" data-testid="lead-outcome">
+                                    —
+                                  </span>
+                                )}
+                              </td>
+                              <td className="muted" data-testid="lead-callback">
+                                {formatCallbackTime(callbackDatetime)}
+                              </td>
+                              <td>
+                                <span
+                                  className="truncate-summary"
+                                  title={aiSummary || undefined}
+                                  data-testid="lead-ai-summary"
+                                >
+                                  {aiSummary || "—"}
+                                </span>
+                              </td>
+                              <td>
+                                <div className="table-actions">
+                                  <button
+                                    onClick={() => handleTriggerVoiceCall(lead)}
+                                    disabled={callingLeadId === lead.id}
+                                    className="btn btn-primary btn-sm"
+                                  >
+                                    {callingLeadId === lead.id ? "Calling..." : "Trigger AI Call"}
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenCallHistory(lead)}
+                                    className="btn btn-secondary btn-sm"
+                                  >
+                                    Call History
+                                  </button>
+                                </div>
+                              </td>
+                              <td>
+                                <button
+                                  onClick={() => handleDeleteLead(lead.id)}
+                                  className="link-danger"
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
+
+          <p className="dashboard-note">
+            Consent-first workspace · calls and integrations run in simulated mode until explicitly approved.
+          </p>
+        </div>
       </main>
 
-      <DashboardClient />
-
       {historyLead && (
-        <div
-          className="fixed inset-0 z-50 flex justify-end"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="call-history-title"
-        >
-          <div
-            className="absolute inset-0 bg-slate-900/40"
-            onClick={handleCloseCallHistory}
-            aria-hidden="true"
-          />
-          <aside className="relative flex h-full w-full max-w-md flex-col bg-white shadow-xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
+        <div>
+          <div className="drawer-backdrop" onClick={handleCloseCallHistory} aria-hidden="true" />
+          <aside
+            className="drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="call-history-title"
+          >
+            <div className="drawer-header">
               <div>
-                <h2 id="call-history-title" className="text-base font-semibold text-slate-900">
+                <h2 id="call-history-title" className="drawer-title">
                   Call History
                 </h2>
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="drawer-subtitle">
                   {historyLead.full_name} · {historyLead.phone}
                 </p>
               </div>
               <button
                 onClick={handleCloseCallHistory}
                 aria-label="Close call history"
-                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                className="icon-button"
               >
-                <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
                   <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+            <div className="drawer-body">
               {historyLoading ? (
-                <p className="text-sm text-slate-500">Loading call history...</p>
+                <p className="muted">Loading call history...</p>
               ) : historyError ? (
-                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <p className="dash-message" data-state="error" role="alert">
                   {historyError}
                 </p>
               ) : callLogs.length === 0 ? (
-                <p className="text-sm text-slate-500">No calls have been logged for this lead yet.</p>
+                <p className="muted">No calls have been logged for this lead yet.</p>
               ) : (
-                <ul className="space-y-3">
+                <ul className="history-list">
                   {callLogs.map((log) => (
-                    <li key={log.id} className="rounded-xl border border-slate-200 p-3.5 shadow-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
-                          {log.call_status}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {new Date(log.created_at).toLocaleString()}
-                        </span>
+                    <li key={log.id} className="history-item">
+                      <div className="history-meta">
+                        <span className="history-status">{log.call_status}</span>
+                        <span className="muted">{new Date(log.created_at).toLocaleString()}</span>
                       </div>
 
-                      <dl className="mt-3 space-y-2.5 text-sm">
+                      <dl className="history-fields">
                         <div>
-                          <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                            Duration
-                          </dt>
-                          <dd className="text-slate-700">
-                            {log.duration_seconds != null ? `${log.duration_seconds}s` : "—"}
-                          </dd>
+                          <dt>Duration</dt>
+                          <dd>{log.duration_seconds != null ? `${log.duration_seconds}s` : "—"}</dd>
                         </div>
                         <div>
-                          <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                            Outcome
-                          </dt>
-                          <dd className="text-slate-700">
-                            {log.call_outcome ? OUTCOME_LABELS[log.call_outcome] : "—"}
-                          </dd>
+                          <dt>Outcome</dt>
+                          <dd>{log.call_outcome ? OUTCOME_LABELS[log.call_outcome] : "—"}</dd>
                         </div>
                         <div>
-                          <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                            Callback Time
-                          </dt>
-                          <dd className="text-slate-700">{formatCallbackTime(log.callback_datetime)}</dd>
+                          <dt>Callback Time</dt>
+                          <dd>{formatCallbackTime(log.callback_datetime)}</dd>
                         </div>
                         <div>
-                          <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                            AI Summary
-                          </dt>
-                          <dd className="whitespace-pre-wrap text-slate-700">{log.ai_summary || "—"}</dd>
+                          <dt>AI Summary</dt>
+                          <dd>{log.ai_summary || "—"}</dd>
                         </div>
                         <div>
-                          <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                            Next Action
-                          </dt>
-                          <dd className="text-slate-700">{log.next_action || "—"}</dd>
+                          <dt>Next Action</dt>
+                          <dd>{log.next_action || "—"}</dd>
                         </div>
                         <div>
-                          <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                            Transcript
-                          </dt>
-                          <dd className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-2.5 text-xs leading-relaxed text-slate-600">
-                            {log.transcript || "—"}
-                          </dd>
+                          <dt>Transcript</dt>
+                          <dd className="history-transcript">{log.transcript || "—"}</dd>
                         </div>
                       </dl>
                     </li>
