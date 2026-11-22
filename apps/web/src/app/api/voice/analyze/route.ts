@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { analyzeCall, callOutcomeFields } from "../../../../lib/callAnalysis";
+import { pushLeadToSheetSafe, type SheetSyncResult } from "../../../../lib/sheetSync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -99,10 +100,11 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   let leadName = "";
+  let leadRow: Record<string, unknown> | null = null;
   if (leadId) {
     const { data: lead, error: leadError } = await supabase
       .from("leads")
-      .select("id, full_name")
+      .select("*")
       .eq("id", leadId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -113,7 +115,8 @@ export async function POST(request: Request): Promise<Response> {
     if (!lead) {
       return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     }
-    leadName = readText(lead.full_name, 120);
+    leadRow = lead as unknown as Record<string, unknown>;
+    leadName = readText(String(lead.full_name ?? ""), 120);
   }
 
   const transcriptSource =
@@ -152,6 +155,11 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
+  let sheetSync: SheetSyncResult = { status: "skipped", reason: "Lead is not linked to a sheet row." };
+  if (leadRow) {
+    sheetSync = await pushLeadToSheetSafe({ ...leadRow, ...fields });
+  }
+
   return NextResponse.json({
     ok: true,
     call_id: callLog?.id ?? (callId || null),
@@ -159,5 +167,6 @@ export async function POST(request: Request): Promise<Response> {
     ...fields,
     provider: analysis.provider,
     warnings: analysis.warnings,
+    sheet_sync: sheetSync,
   });
 }

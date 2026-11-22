@@ -7,6 +7,7 @@ import {
   sanitizeCallOutcome,
   sanitizeIsoDatetime,
 } from "../../../../lib/callAnalysis";
+import { pushLeadToSheetSafe, type SheetSyncResult } from "../../../../lib/sheetSync";
 
 export const runtime = "nodejs";
 
@@ -88,6 +89,7 @@ export async function POST(req: Request) {
 
     const leadStatus = sanitizeWebhookLeadStatus(body?.lead_status);
     const leadId = data.lead_id ? String(data.lead_id) : "";
+    let sheetSync: SheetSyncResult = { status: "skipped", reason: "Lead is not linked to a sheet row." };
 
     if (leadId) {
       const leadUpdate: Record<string, string | null> = { ...fields };
@@ -103,6 +105,20 @@ export async function POST(req: Request) {
       if (leadError) {
         return NextResponse.json({ error: leadError.message }, { status: 500 });
       }
+
+      const { data: updatedLead } = await supabase
+        .from("leads")
+        .select("*")
+        .eq("id", leadId)
+        .eq("tenant_id", String(existingCall.tenant_id))
+        .maybeSingle();
+
+      if (updatedLead) {
+        sheetSync = await pushLeadToSheetSafe({
+          ...(updatedLead as Record<string, unknown>),
+          ...leadUpdate,
+        });
+      }
     }
 
     return NextResponse.json({
@@ -112,6 +128,7 @@ export async function POST(req: Request) {
       callback_datetime: fields.callback_datetime,
       ai_summary: fields.ai_summary,
       provider: analysis.provider,
+      sheet_sync: sheetSync,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Webhook processing failed";

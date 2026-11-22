@@ -16,7 +16,7 @@
   - **Goal:** Update `/api/voice/webhook` & `/api/voice/analyze` to extract `call_outcome` (`INTERESTED`, `NOT_INTERESTED`, `CALLBACK_REQUESTED`, `NO_ANSWER`), `callback_datetime`, `ai_summary`, and `full_transcript` via Groq JSON mode, update `leads` & `call_logs`, and render Outcome badges + Callback Time + AI Summary in Dashboard table.
   - **Verify:** `cd apps/web && npm run build` passes and simulated call updates lead outcome & summary.
 
-- [ ] **T005: 2-Way Google Sheets Sync (`/api/sheets/import`, Row Auto-Update & `/api/sheets/export`)**
+- [x] **T005: 2-Way Google Sheets Sync (`/api/sheets/import`, Row Auto-Update & `/api/sheets/export`)**
   - **Goal:** Support importing leads from a Google Sheet URL (`+91` normalized, storing `sheet_id` & `sheet_row_index`), auto-updating existing sheet rows after calls when Google Sheets credentials are configured, and 1-click "Export to Google Sheet / CSV" from Dashboard.
   - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
 

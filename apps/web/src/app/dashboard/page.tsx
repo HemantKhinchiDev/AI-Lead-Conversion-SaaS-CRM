@@ -2,6 +2,7 @@
 import CsvImportCard from "../../components/CsvImportCard";
 import TrainAgentCard from "../../components/TrainAgentCard";
 import VoiceDemoModal from "../../components/VoiceDemoModal";
+import SheetSyncCard from "../../components/SheetSyncCard";
 import DashboardClient from "./DashboardClient";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -538,6 +539,7 @@ if (!supabase) return;
         </section>
 
         <CsvImportCard />
+        <SheetSyncCard />
       </main>
 
       <DashboardClient />
