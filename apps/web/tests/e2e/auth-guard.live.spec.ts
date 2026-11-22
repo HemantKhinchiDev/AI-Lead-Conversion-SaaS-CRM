@@ -14,8 +14,8 @@ test("T017b: Browser bundle - no service-role credentials exposed", async ({ pag
 
 test("T017c: Dashboard page loads after successful login", async ({ page }) => {
   await page.goto(`${LIVE_BASE_URL}/login`);
-  await page.fill('input[name="email"]', "demo@example.com");
-  await page.fill('input[name="password"]', "Password123");
+  await page.fill('input[type="email"]', "demo@example.com");
+  await page.fill('input[type="password"]', "Password123");
   await page.click('button[type="submit"]');
   await expect(page).toHaveURL(`${LIVE_BASE_URL}/dashboard`);
   await expect(page.locator("h1")).toContainText("AI Lead Conversion");

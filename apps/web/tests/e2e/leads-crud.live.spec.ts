@@ -9,8 +9,8 @@ test.describe('Leads CRUD (Live) - Create/Update Only', () => {
     await page.goto(`${BASE_URL}/login`);
     await page.getByLabel(/email/i).fill(DEMO_EMAIL);
     await page.getByLabel(/password/i).fill(DEMO_PASSWORD);
-    await page.getByRole('button', { name: /login|sign in/i }).click();
-    await page.waitForURL(/\/(dashboard|leads|app)\//, { timeout: 15000 });
+    await page.locator('form button[type="submit"]').click();
+    await page.waitForURL(/\/(dashboard|leads|app)/, { timeout: 15000 });
   });
 
   test('T025: Create a new lead and verify it appears in the list', async ({ page }) => {

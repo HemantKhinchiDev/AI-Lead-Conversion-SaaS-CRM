@@ -4,8 +4,8 @@ export const LIVE_BASE_URL = process.env.PLAYWRIGHT_LIVE_BASE_URL || "https://we
 
 export async function loginAsTenant(page: Page, tenantEmail: string, tenantPassword: string) {
   await page.goto(`${LIVE_BASE_URL}/login`);
-  await page.fill('input[name="email"]', tenantEmail);
-  await page.fill('input[name="password"]', tenantPassword);
+  await page.fill('input[type="email"]', tenantEmail);
+  await page.fill('input[type="password"]', tenantPassword);
   await page.click('button[type="submit"]');
   await expect(page).toHaveURL(`${LIVE_BASE_URL}/dashboard`);
 }
