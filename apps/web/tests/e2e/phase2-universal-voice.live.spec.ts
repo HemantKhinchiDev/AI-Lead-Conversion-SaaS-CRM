@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 
 const LIVE_BASE_URL =
-  process.env.PLAYWRIGHT_LIVE_BASE_URL || "https://web-olive-delta-41.vercel.app";
+  process.env.PLAYWRIGHT_LIVE_BASE_URL || "http://127.0.0.1:3000";
 
 const LEAD_NAME = "Priya Mehta";
 const BUSINESS_NAME = "Sunrise Multispeciality Clinic";
@@ -17,7 +17,7 @@ async function registerTenant(page: Page): Promise<void> {
   await page.locator('form button[type="submit"]').click();
 
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("AI Lead Conversion");
+  await expect(page.getByRole("heading", { name: "AI Lead Conversion" })).toBeVisible();
 }
 
 async function addConsentedLead(page: Page): Promise<void> {
@@ -55,7 +55,9 @@ test("Phase 2 E2E: Train KB -> Simulated call INTERESTED outcome & summary -> Ex
   await trainAgent.getByRole("button", { name: "Train AI Agent" }).click();
 
   await expect(page.getByText(/Knowledge base (trained|saved)/)).toBeVisible({ timeout: 30000 });
-  await expect(trainAgent.getByText(BUSINESS_NAME)).toBeVisible({ timeout: 15000 });
+  await expect(trainAgent.getByRole("heading", { name: BUSINESS_NAME, exact: true })).toBeVisible({
+    timeout: 15000,
+  });
 
   const leadRow = page.locator("tr", { hasText: LEAD_NAME });
   await leadRow.getByRole("button", { name: "Trigger AI Call" }).click();

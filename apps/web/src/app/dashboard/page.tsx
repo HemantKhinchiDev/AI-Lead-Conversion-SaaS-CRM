@@ -8,7 +8,7 @@ import DashboardClient from "./DashboardClient";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "../../lib/supabase";
-import type { CallOutcome } from "../../lib/callAnalysis";
+import { sanitizeCallOutcome, type CallOutcome } from "../../lib/callAnalysis";
 
 type Lead = {
   id: string;
@@ -95,6 +95,7 @@ const [leads, setLeads] = useState<Lead[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [callingLeadId, setCallingLeadId] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [successMsg, setSuccessMsg] = useState<string>("");
   const historyRequestRef = useRef(0);
@@ -223,6 +224,66 @@ if (!supabase) return;
     setEmail("");
     setPropertyInterest("");
     setSuccessMsg("Lead added to workspace.");
+  }
+
+  async function handleTriggerVoiceCall(lead: Lead) {
+    setErrorMsg("");
+    setSuccessMsg("");
+    setCallingLeadId(lead.id);
+    try {
+      const { data: sessionData } = await supabase!.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      const response = await fetch("/api/voice/trigger", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ lead_id: lead.id }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || json.error) {
+        setErrorMsg(json.error || "Failed to trigger AI call.");
+        return;
+      }
+
+      const outcome = sanitizeCallOutcome(json.call_outcome);
+      const callbackDatetime = typeof json.callback_datetime === "string" ? json.callback_datetime : null;
+      const aiSummary = typeof json.ai_summary === "string" ? json.ai_summary : null;
+
+      setCallMap((prev) => ({
+        ...prev,
+        [lead.id]: {
+          call_status: json.status,
+          ai_summary: aiSummary,
+          call_outcome: outcome,
+          callback_datetime: callbackDatetime,
+        },
+      }));
+      setLeads((prev) =>
+        prev.map((item) =>
+          item.id === lead.id
+            ? {
+                ...item,
+                status: json.mode === "sandbox" ? "contacted" : item.status,
+                call_outcome: outcome ?? item.call_outcome,
+                callback_datetime: callbackDatetime ?? item.callback_datetime,
+                ai_summary: aiSummary ?? item.ai_summary,
+              }
+            : item
+        )
+      );
+      setSuccessMsg(`AI Voice Call (${json.status}) completed for ${lead.full_name}.`);
+    } catch (caught) {
+      setErrorMsg(caught instanceof Error ? caught.message : "Could not trigger the AI call.");
+    } finally {
+      setCallingLeadId("");
+    }
   }
 
   async function handleOpenCallHistory(lead: Lead) {
@@ -512,6 +573,13 @@ if (!supabase) return;
                         <td className="py-3 pr-4">
                           <div className="flex flex-col gap-1">
                             <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                onClick={() => handleTriggerVoiceCall(lead)}
+                                disabled={callingLeadId === lead.id}
+                                className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                              >
+                                {callingLeadId === lead.id ? "Calling..." : "Trigger AI Call"}
+                              </button>
                               <button
                                 onClick={() => handleOpenCallHistory(lead)}
                                 className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"

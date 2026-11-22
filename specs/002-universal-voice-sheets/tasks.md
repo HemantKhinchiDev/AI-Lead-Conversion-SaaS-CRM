@@ -20,6 +20,6 @@
   - **Goal:** Support importing leads from a Google Sheet URL (`+91` normalized, storing `sheet_id` & `sheet_row_index`), auto-updating existing sheet rows after calls when Google Sheets credentials are configured, and 1-click "Export to Google Sheet / CSV" from Dashboard.
   - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
 
-- [ ] **T006: Full Phase 2 Live Playwright E2E & Phase 1 Regression Verification**
+- [x] **T006: Full Phase 2 Live Playwright E2E & Phase 1 Regression Verification**
   - **Goal:** Write and run `apps/web/tests/e2e/phase2-universal-voice.live.spec.ts` verifying KB training, simulated AI call with `INTERESTED` outcome + summary rendering in table, and export button, plus re-run `phase1-full.live.spec.ts`.
   - **Verify:** `cd apps/web && npx playwright test tests/e2e/phase1-full.live.spec.ts tests/e2e/phase2-universal-voice.live.spec.ts --reporter=list` outputs `2 passed`.
