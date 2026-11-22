@@ -7,6 +7,7 @@ import DashboardClient from "./DashboardClient";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "../../lib/supabase";
+import type { CallOutcome } from "../../lib/callAnalysis";
 
 type Lead = {
   id: string;
@@ -17,6 +18,10 @@ type Lead = {
   consent_given: boolean;
   status: "new" | "contacted" | "qualified" | "site_visit" | "closed" | "lost";
   created_at: string;
+  call_outcome: CallOutcome | null;
+  callback_datetime: string | null;
+  ai_summary: string | null;
+  full_transcript: string | null;
 };
 
 type CallLog = {
@@ -24,7 +29,10 @@ type CallLog = {
   call_status: string;
   duration_seconds: number | null;
   transcript: string | null;
+  full_transcript: string | null;
   ai_summary: string | null;
+  call_outcome: CallOutcome | null;
+  callback_datetime: string | null;
   next_action: string | null;
   created_at: string;
 };
@@ -32,7 +40,30 @@ type CallLog = {
 type CallSummary = {
   call_status: string;
   ai_summary: string | null;
+  call_outcome: CallOutcome | null;
+  callback_datetime: string | null;
 };
+
+const OUTCOME_LABELS: Record<CallOutcome, string> = {
+  INTERESTED: "Interested",
+  NOT_INTERESTED: "Not interested",
+  CALLBACK_REQUESTED: "Callback requested",
+  NO_ANSWER: "No answer",
+};
+
+const OUTCOME_STYLES: Record<CallOutcome, string> = {
+  INTERESTED: "bg-emerald-100 text-emerald-700",
+  NOT_INTERESTED: "bg-slate-100 text-slate-600",
+  CALLBACK_REQUESTED: "bg-amber-100 text-amber-700",
+  NO_ANSWER: "bg-rose-100 text-rose-700",
+};
+
+function formatCallbackTime(value: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString();
+}
 
 const STATUS_OPTIONS: Lead["status"][] = [
   "new",
@@ -86,7 +117,10 @@ const [leads, setLeads] = useState<Lead[]>([]);
 
     const [{ data, error }, { data: logsData }] = await Promise.all([
       supabase!.from("leads").select("*").order("created_at", { ascending: false }),
-      supabase!.from("call_logs").select("lead_id, call_status, ai_summary").order("created_at", { ascending: false }),
+      supabase!
+        .from("call_logs")
+        .select("lead_id, call_status, ai_summary, call_outcome, callback_datetime")
+        .order("created_at", { ascending: false }),
     ]);
 
     if (error) {
@@ -97,9 +131,20 @@ const [leads, setLeads] = useState<Lead[]>([]);
 
     if (logsData) {
       const latest: Record<string, CallSummary> = {};
-      for (const row of logsData as Array<{ lead_id: string; call_status: string; ai_summary: string | null }>) {
+      for (const row of logsData as Array<{
+        lead_id: string;
+        call_status: string;
+        ai_summary: string | null;
+        call_outcome: CallOutcome | null;
+        callback_datetime: string | null;
+      }>) {
         if (!latest[row.lead_id]) {
-          latest[row.lead_id] = { call_status: row.call_status, ai_summary: row.ai_summary };
+          latest[row.lead_id] = {
+            call_status: row.call_status,
+            ai_summary: row.ai_summary,
+            call_outcome: row.call_outcome,
+            callback_datetime: row.callback_datetime,
+          };
         }
       }
       setCallMap(latest);
@@ -189,7 +234,7 @@ if (!supabase) return;
 
     const { data, error } = await supabase
       .from("call_logs")
-      .select("id, call_status, duration_seconds, transcript, ai_summary, next_action, created_at")
+      .select("id, call_status, duration_seconds, transcript, full_transcript, ai_summary, call_outcome, callback_datetime, next_action, created_at")
       .eq("lead_id", lead.id)
       .order("created_at", { ascending: false });
 
@@ -207,7 +252,12 @@ if (!supabase) return;
       const latest = rows[0];
       setCallMap((prev) => ({
         ...prev,
-        [lead.id]: { call_status: latest.call_status, ai_summary: latest.ai_summary },
+        [lead.id]: {
+          call_status: latest.call_status,
+          ai_summary: latest.ai_summary,
+          call_outcome: latest.call_outcome,
+          callback_datetime: latest.callback_datetime,
+        },
       }));
     }
   }
@@ -395,12 +445,20 @@ if (!supabase) return;
                     <th className="py-2.5 pr-4">Phone</th>
                     <th className="py-2.5 pr-4">Interest</th>
                     <th className="py-2.5 pr-4">Status</th>
+                    <th className="py-2.5 pr-4">Outcome</th>
+                    <th className="py-2.5 pr-4">Callback Time</th>
+                    <th className="py-2.5 pr-4">AI Summary</th>
                     <th className="py-2.5 pr-4">AI Voice Agent</th>
                     <th className="py-2.5 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredLeads.map((lead) => {
+                    const summary = callMap[lead.id];
+                    const outcome = lead.call_outcome ?? summary?.call_outcome ?? null;
+                    const callbackDatetime =
+                      lead.callback_datetime ?? summary?.callback_datetime ?? null;
+                    const aiSummary = lead.ai_summary ?? summary?.ai_summary ?? null;
                     return (
                       <tr key={lead.id}>
                         <td className="py-3 pr-4">
@@ -422,6 +480,33 @@ if (!supabase) return;
                               </option>
                             ))}
                           </select>
+                        </td>
+                        <td className="py-3 pr-4">
+                          {outcome ? (
+                            <span
+                              className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${OUTCOME_STYLES[outcome]}`}
+                              data-testid="lead-outcome"
+                              data-outcome={outcome}
+                            >
+                              {OUTCOME_LABELS[outcome]}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400" data-testid="lead-outcome">
+                              —
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 pr-4 text-xs text-slate-600" data-testid="lead-callback">
+                          {formatCallbackTime(callbackDatetime)}
+                        </td>
+                        <td className="py-3 pr-4 text-xs text-slate-600">
+                          <span
+                            className="inline-block max-w-xs truncate align-bottom"
+                            title={aiSummary || undefined}
+                            data-testid="lead-ai-summary"
+                          >
+                            {aiSummary || "—"}
+                          </span>
                         </td>
                         <td className="py-3 pr-4">
                           <div className="flex flex-col gap-1">
@@ -520,6 +605,20 @@ if (!supabase) return;
                           <dd className="text-slate-700">
                             {log.duration_seconds != null ? `${log.duration_seconds}s` : "—"}
                           </dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                            Outcome
+                          </dt>
+                          <dd className="text-slate-700">
+                            {log.call_outcome ? OUTCOME_LABELS[log.call_outcome] : "—"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                            Callback Time
+                          </dt>
+                          <dd className="text-slate-700">{formatCallbackTime(log.callback_datetime)}</dd>
                         </div>
                         <div>
                           <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">

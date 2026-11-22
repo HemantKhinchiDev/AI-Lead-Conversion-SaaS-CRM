@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getPlivoConfig, normalizePlivoNumber, placePlivoCall } from "../../../../lib/plivo";
 import { evaluateVoiceEligibility } from "../../../../lib/voiceGuard";
+import { analyzeCall, callOutcomeFields } from "../../../../lib/callAnalysis";
 
 export const runtime = "nodejs";
 
@@ -163,6 +164,13 @@ export async function POST(req: Request) {
       ? "Lead phone number is not valid for Plivo; used simulated mode."
       : "Plivo is not configured; used simulated mode.";
 
+    const transcript = `AI Agent: Namaste ${lead.full_name}, following up on your recent enquiry. Lead: Yes, I am interested and would like a callback.`;
+    const analysis = await analyzeCall(
+      { transcript, call_status: "completed", language: "en-IN", lead_name: lead.full_name },
+      { groqKey: "" }
+    );
+    const outcomeFields = callOutcomeFields(analysis);
+
     const { data: callRow, error: insertErr } = await supabase
       .from("call_logs")
       .insert([
@@ -174,8 +182,9 @@ export async function POST(req: Request) {
           mode: "simulated",
           call_status: "completed",
           duration_seconds: 42,
-          transcript: `AI Agent: Namaste ${lead.full_name}, following up on your recent enquiry. Lead: Yes, I am interested and would like a callback.`,
-          ai_summary: `Consent verified. ${lead.full_name} confirmed interest and requested a callback.`,
+          transcript,
+          ...outcomeFields,
+          ai_summary: `${outcomeFields.ai_summary} Consent verified.`,
           next_action: "callback",
         },
       ])
@@ -188,14 +197,21 @@ export async function POST(req: Request) {
 
     await supabase
       .from("leads")
-      .update({ status: "contacted", updated_at: new Date().toISOString() })
+      .update({
+        status: "contacted",
+        updated_at: new Date().toISOString(),
+        ...outcomeFields,
+      })
       .eq("id", lead.id)
       .eq("tenant_id", tenantId);
 
     return NextResponse.json({
       call_id: callRow.id,
       status: callRow.call_status,
+      call_outcome: outcomeFields.call_outcome,
+      callback_datetime: outcomeFields.callback_datetime,
       ai_summary: callRow.ai_summary,
+      full_transcript: outcomeFields.full_transcript,
       mode: "sandbox",
       provider: "sandbox_voice_sim",
       warnings: [sandboxWarning],

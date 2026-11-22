@@ -12,7 +12,7 @@
   - **Goal:** Create `/api/voice/respond` grounded in tenant `knowledge_bases` supporting `hi-IN`, `gu-IN`, `en-IN` + wire local `edge-tts` audio synthesis + add "Test AI Voice (Live Demo)" modal on Dashboard + wire optional Plivo outbound call trigger in `/api/voice/trigger` (with `sandbox_voice_sim` fallback when Plivo env keys are absent).
   - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
 
-- [ ] **T004: Post-Call Outcome & Summary Extractor (`POST /api/voice/analyze`)**
+- [x] **T004: Post-Call Outcome & Summary Extractor (`POST /api/voice/analyze`)**
   - **Goal:** Update `/api/voice/webhook` & `/api/voice/analyze` to extract `call_outcome` (`INTERESTED`, `NOT_INTERESTED`, `CALLBACK_REQUESTED`, `NO_ANSWER`), `callback_datetime`, `ai_summary`, and `full_transcript` via Groq JSON mode, update `leads` & `call_logs`, and render Outcome badges + Callback Time + AI Summary in Dashboard table.
   - **Verify:** `cd apps/web && npm run build` passes and simulated call updates lead outcome & summary.
 
