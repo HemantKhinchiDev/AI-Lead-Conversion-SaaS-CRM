@@ -228,7 +228,7 @@ if (!supabase) return;
 if (!supabase) return;
   async function handleStatusChange(id: string, newStatus: Lead["status"]) {
     setErrorMsg("");
-    const { error } = await supabase
+    const { error } = await supabase!
       .from("leads")
       .update({ status: newStatus, updated_at: new Date().toISOString() })
       .eq("id", id);

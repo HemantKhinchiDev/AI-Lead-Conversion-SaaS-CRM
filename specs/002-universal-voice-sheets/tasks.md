@@ -1,6 +1,6 @@
 # Phase 2 Autonomous Execution Queue
 
-- [ ] **T001: Database Migration (SQL Gatekeeper)**
+- [x] **T001: Database Migration (SQL Gatekeeper)**
   - **Goal:** Create `supabase/migrations/002_universal_kb_and_outcomes.sql` defining `public.knowledge_bases` (with RLS) and adding `call_outcome`, `callback_datetime`, `ai_summary`, `full_transcript`, `sheet_id`, `sheet_row_index` to `public.leads` and `public.call_logs`.
   - **Verify:** File exists and is valid SQL; emit `[ACTION_REQUIRED: RUN_SQL_IN_SUPABASE]` with the exact SQL block and pause for user confirmation.
 

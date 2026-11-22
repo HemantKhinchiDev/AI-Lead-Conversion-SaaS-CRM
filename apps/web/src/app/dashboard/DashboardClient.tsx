@@ -1,6 +1,6 @@
-"use client"
-import CsvImportCard from "../../components/CsvImportCard";
 "use client";
+
+import CsvImportCard from "../../components/CsvImportCard";
 
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
