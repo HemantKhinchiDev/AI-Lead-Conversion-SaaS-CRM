@@ -33,8 +33,31 @@ export async function POST(req: Request) {
       .eq("id", userData.user.id)
       .maybeSingle();
 
-    const tenantId = typeof membership?.tenant_id === "string" ? membership.tenant_id : "";
-    if (memErr || !tenantId) {
+    let tenantId = typeof membership?.tenant_id === "string" ? membership.tenant_id : "";
+    if (!tenantId) {
+      const { data: leadTenant } = await supabase
+        .from("leads")
+        .select("tenant_id")
+        .eq("id", leadId)
+        .maybeSingle();
+      if (typeof leadTenant?.tenant_id === "string" && leadTenant.tenant_id) {
+        tenantId = leadTenant.tenant_id;
+      } else {
+        const { data: createdTenant } = await supabase
+          .from("tenants")
+          .insert([{ name: userData.user.email || "Workspace" }])
+          .select("id")
+          .single();
+        tenantId = typeof createdTenant?.id === "string" ? createdTenant.id : "";
+      }
+      if (tenantId) {
+        await supabase.from("users").upsert(
+          [{ id: userData.user.id, tenant_id: tenantId, email: userData.user.email }],
+          { onConflict: "id" }
+        );
+      }
+    }
+    if (!tenantId) {
       return NextResponse.json({ error: "Tenant membership not found" }, { status: 403 });
     }
 
