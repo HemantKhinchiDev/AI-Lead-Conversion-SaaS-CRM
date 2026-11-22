@@ -394,7 +394,8 @@ a {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
   padding: 0.65rem 0.75rem;
   border: 1px solid #334155;
@@ -402,6 +403,38 @@ a {
   background: #0f172a;
   color: #e2e8f0;
   font: inherit;
+}
+
+.field textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.train-result {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #1e293b;
+  border-radius: 0.75rem;
+  background: #0f172a;
+  color: #cbd5e1;
+  font-size: 0.8125rem;
+}
+
+.train-result h3 {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 0.95rem;
+}
+
+.train-result p,
+.train-result ul {
+  margin: 0;
+}
+
+.train-result ul {
+  padding-left: 1.1rem;
 }
 
 .button {

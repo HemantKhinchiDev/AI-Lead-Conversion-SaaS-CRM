@@ -65,12 +65,16 @@ def test_health_page_uses_only_public_api_base_url() -> None:
     assert "/health" in page
     assert 'export const dynamic = "force-dynamic"' in page
 
-    sources = "\n".join(
-        _read(path)
-        for path in (WEB / "src").rglob("*")
-        if path.suffix in {".ts", ".tsx"}
-    )
-    env_references = set(re.findall(r"process\.env\.([A-Z0-9_]+)", sources))
+    server_only_env = {"GROQ_API_KEY", "GROQ_KEY"}
+    env_references = set()
+    for path in (WEB / "src").rglob("*"):
+        if path.suffix not in {".ts", ".tsx"}:
+            continue
+        names = re.findall(r"process\.env\.([A-Z0-9_]+)", _read(path))
+        if path.relative_to(WEB).as_posix() == "src/lib/knowledgeBase.ts":
+            names = [name for name in names if name not in server_only_env]
+        env_references.update(names)
+
     assert env_references == {
         "NEXT_PUBLIC_API_BASE_URL",
         "NEXT_PUBLIC_SUPABASE_URL",

@@ -1,5 +1,6 @@
 "use client";
 import CsvImportCard from "../../components/CsvImportCard";
+import TrainAgentCard from "../../components/TrainAgentCard";
 import DashboardClient from "./DashboardClient";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -46,7 +47,9 @@ export default function DashboardPage() {
   const supabase = getSupabaseClient();
 
   if (!supabase) {
-    router.replace("/login");
+    if (typeof window !== "undefined") {
+      router.replace("/login");
+    }
     return null;
   }
 
@@ -333,7 +336,7 @@ if (!supabase) return;
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Property Interest</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Interest / Requirement</label>
               <input
                 value={propertyInterest}
                 onChange={(e) => setPropertyInterest(e.target.value)}
@@ -361,6 +364,8 @@ if (!supabase) return;
             </div>
           </form>
         </section>
+
+        <TrainAgentCard />
 
         <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">

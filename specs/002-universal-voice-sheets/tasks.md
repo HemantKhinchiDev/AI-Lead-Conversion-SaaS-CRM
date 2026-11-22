@@ -4,7 +4,7 @@
   - **Goal:** Create `supabase/migrations/002_universal_kb_and_outcomes.sql` defining `public.knowledge_bases` (with RLS) and adding `call_outcome`, `callback_datetime`, `ai_summary`, `full_transcript`, `sheet_id`, `sheet_row_index` to `public.leads` and `public.call_logs`.
   - **Verify:** File exists and is valid SQL; emit `[ACTION_REQUIRED: RUN_SQL_IN_SUPABASE]` with the exact SQL block and pause for user confirmation.
 
-- [ ] **T002: Universal Knowledge Base Auto-Trainer (`POST /api/kb/train` + Dashboard UI)**
+- [x] **T002: Universal Knowledge Base Auto-Trainer (`POST /api/kb/train` + Dashboard UI)**
   - **Goal:** Build `/api/kb/train` to fetch website text (`https://r.jina.ai/<url>` with fetch fallback), extract structured business profile, FAQs & call script via Groq (`llama-3.3-70b-versatile`), and upsert into `knowledge_bases`. Add "Train AI Agent" panel to Dashboard (Website URL, Google Map link, Call Goal, Script editor) and generalize real-estate-only UI labels.
   - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
 

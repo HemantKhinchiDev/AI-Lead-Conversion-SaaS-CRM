@@ -26,8 +26,8 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
   warm_lead: "Warm lead",
   cold_lead: "Cold lead",
   follow_up_required: "Follow-up required",
-  site_visit_requested: "Site visit requested",
-  site_visit_scheduled: "Site visit scheduled",
+  site_visit_requested: "Appointment requested",
+  site_visit_scheduled: "Appointment scheduled",
   converted: "Converted",
   not_interested: "Not interested",
   do_not_contact: "Do not contact",
@@ -44,7 +44,7 @@ const INTERESTED_STATUSES: readonly LeadStatus[] = ["interested", "hot_lead", "w
 const campaigns = [
   {
     id: "CMP-018",
-    name: "Ahmedabad launch follow-up",
+    name: "Product launch follow-up",
     state: "Approved · simulated",
     eligible: 64,
     simulatedRuns: 61,

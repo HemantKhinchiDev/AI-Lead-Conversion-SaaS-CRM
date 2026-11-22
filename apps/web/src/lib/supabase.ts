@@ -24,12 +24,13 @@ export function getSupabaseClient(): SupabaseClient | null {
   }
 
   if (!browserClient) {
+    const isBrowser = typeof window !== "undefined";
     try {
       browserClient = createClient(supabaseUrl, supabaseAnonKey, {
         auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true,
+          persistSession: isBrowser,
+          autoRefreshToken: isBrowser,
+          detectSessionInUrl: isBrowser,
         },
       });
     } catch {
