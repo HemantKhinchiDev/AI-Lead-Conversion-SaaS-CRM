@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getPlivoConfig, normalizePlivoNumber, placePlivoCall } from "../../../../lib/plivo";
 import { evaluateVoiceEligibility } from "../../../../lib/voiceGuard";
+
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
@@ -77,7 +80,88 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: guard.error }, { status: guard.status });
     }
 
-    const isSandbox = true;
+    const plivoConfig = getPlivoConfig();
+    const destination = normalizePlivoNumber(lead.phone);
+
+    if (plivoConfig && destination) {
+      const dispatch = await placePlivoCall(
+        { to: destination, answerUrl: plivoConfig.answerUrl },
+        { config: plivoConfig }
+      );
+
+      if (!dispatch.ok) {
+        const { data: failedRow } = await supabase
+          .from("call_logs")
+          .insert([
+            {
+              tenant_id: tenantId,
+              user_id: userData.user.id,
+              lead_id: lead.id,
+              provider: "plivo",
+              mode: "live",
+              call_status: "failed",
+              duration_seconds: 0,
+              transcript: null,
+              ai_summary: `Plivo outbound call failed: ${dispatch.error ?? "unknown error"}`,
+              next_action: "retry",
+            },
+          ])
+          .select()
+          .single();
+
+        return NextResponse.json(
+          {
+            error: dispatch.error ?? "Plivo call failed",
+            call_id: failedRow?.id ?? null,
+            mode: "live",
+            provider: "plivo",
+          },
+          { status: 502 }
+        );
+      }
+
+      const { data: callRow, error: insertErr } = await supabase
+        .from("call_logs")
+        .insert([
+          {
+            tenant_id: tenantId,
+            user_id: userData.user.id,
+            lead_id: lead.id,
+            provider: "plivo",
+            mode: "live",
+            call_status: "queued",
+            duration_seconds: 0,
+            transcript: null,
+            ai_summary: "Outbound AI call queued via Plivo.",
+            next_action: "await_webhook",
+          },
+        ])
+        .select()
+        .single();
+
+      if (insertErr) {
+        return NextResponse.json({ error: insertErr.message }, { status: 500 });
+      }
+
+      await supabase
+        .from("leads")
+        .update({ status: "contacted", updated_at: new Date().toISOString() })
+        .eq("id", lead.id)
+        .eq("tenant_id", tenantId);
+
+      return NextResponse.json({
+        call_id: callRow.id,
+        status: callRow.call_status,
+        ai_summary: callRow.ai_summary,
+        mode: "live",
+        provider: "plivo",
+        provider_call_id: dispatch.providerCallId ?? null,
+      });
+    }
+
+    const sandboxWarning = plivoConfig
+      ? "Lead phone number is not valid for Plivo; used simulated mode."
+      : "Plivo is not configured; used simulated mode.";
 
     const { data: callRow, error: insertErr } = await supabase
       .from("call_logs")
@@ -86,12 +170,13 @@ export async function POST(req: Request) {
           tenant_id: tenantId,
           user_id: userData.user.id,
           lead_id: lead.id,
-          provider: isSandbox ? "sandbox_voice_sim" : "vapi_or_n8n",
-          call_status: isSandbox ? "completed" : "queued",
-          duration_seconds: isSandbox ? 42 : 0,
-          transcript: `AI Agent: Namaste ${lead.full_name}, following up on your ${lead.property_interest || "property"} inquiry. Lead: Yes, interested in a site visit this weekend.`,
-          ai_summary: `Consent verified. ${lead.full_name} confirmed interest in ${lead.property_interest || "property"} and requested weekend site visit.`,
-          next_action: "site_visit",
+          provider: "sandbox_voice_sim",
+          mode: "simulated",
+          call_status: "completed",
+          duration_seconds: 42,
+          transcript: `AI Agent: Namaste ${lead.full_name}, following up on your recent enquiry. Lead: Yes, I am interested and would like a callback.`,
+          ai_summary: `Consent verified. ${lead.full_name} confirmed interest and requested a callback.`,
+          next_action: "callback",
         },
       ])
       .select()
@@ -112,6 +197,8 @@ export async function POST(req: Request) {
       status: callRow.call_status,
       ai_summary: callRow.ai_summary,
       mode: "sandbox",
+      provider: "sandbox_voice_sim",
+      warnings: [sandboxWarning],
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Voice trigger failed";

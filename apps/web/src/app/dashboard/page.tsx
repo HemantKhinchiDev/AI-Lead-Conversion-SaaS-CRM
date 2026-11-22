@@ -1,6 +1,7 @@
 "use client";
 import CsvImportCard from "../../components/CsvImportCard";
 import TrainAgentCard from "../../components/TrainAgentCard";
+import VoiceDemoModal from "../../components/VoiceDemoModal";
 import DashboardClient from "./DashboardClient";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -366,6 +367,8 @@ if (!supabase) return;
         </section>
 
         <TrainAgentCard />
+
+        <VoiceDemoModal />
 
         <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">

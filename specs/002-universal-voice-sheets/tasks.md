@@ -8,7 +8,7 @@
   - **Goal:** Build `/api/kb/train` to fetch website text (`https://r.jina.ai/<url>` with fetch fallback), extract structured business profile, FAQs & call script via Groq (`llama-3.3-70b-versatile`), and upsert into `knowledge_bases`. Add "Train AI Agent" panel to Dashboard (Website URL, Google Map link, Call Goal, Script editor) and generalize real-estate-only UI labels.
   - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
 
-- [ ] **T003: Multilingual Voice Brain (`POST /api/voice/respond`), `edge-tts` & Plivo Dialer Bridge**
+- [x] **T003: Multilingual Voice Brain (`POST /api/voice/respond`), `edge-tts` & Plivo Dialer Bridge**
   - **Goal:** Create `/api/voice/respond` grounded in tenant `knowledge_bases` supporting `hi-IN`, `gu-IN`, `en-IN` + wire local `edge-tts` audio synthesis + add "Test AI Voice (Live Demo)" modal on Dashboard + wire optional Plivo outbound call trigger in `/api/voice/trigger` (with `sandbox_voice_sim` fallback when Plivo env keys are absent).
   - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
 
