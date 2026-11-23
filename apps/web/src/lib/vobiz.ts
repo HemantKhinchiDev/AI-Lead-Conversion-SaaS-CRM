@@ -103,6 +103,264 @@ function readProviderError(payload: unknown, status: number): string {
   return `Vobiz call failed (HTTP ${status})`;
 }
 
+const VOBIZ_API_BASE_URL = "https://api.vobiz.ai/api/v1";
+const VOBIZ_CALLS_PATH = "/calls";
+const DEFAULT_EDGE_TTS_VOICE = "en-IN-NeerjaNeural";
+
+export type VobizApiConfig = {
+  apiKey: string;
+  accountId: string;
+  fromNumber: string;
+  groqKey: string;
+  edgeVoice: string;
+};
+
+export type VobizCallRequest = {
+  to: string;
+  answerUrl: string;
+};
+
+export type VobizCallDispatch = {
+  ok: boolean;
+  provider: "vobiz" | "sandbox_voice_sim";
+  mode: "live" | "simulated";
+  providerCallId?: string;
+  error?: string;
+  warning?: string;
+};
+
+type VobizDispatchDependencies = {
+  fetchImpl?: typeof fetch;
+  env?: NodeJS.ProcessEnv;
+  timeoutMs?: number;
+};
+
+export type VobizXmlInput = {
+  text: string;
+  voice?: string;
+  prompt?: string;
+  actionUrl?: string;
+  audioUrl?: string;
+  end?: boolean;
+};
+
+export type VobizWebhookEvent = {
+  providerCallId: string;
+  callStatus: string;
+  dtmf: string;
+  speech: string;
+  hangup: boolean;
+  payload: Record<string, unknown>;
+};
+
+export function getVobizApiConfig(
+  env: NodeJS.ProcessEnv = process.env
+): VobizApiConfig | null {
+  const apiKey = readEnv(env.VOBIz_API_KEY) || readEnv(env.VOBIZ_AUTH_TOKEN);
+  const accountId = readEnv(env.VOBIz_ACCOUNT_ID) || readEnv(env.VOBIZ_AUTH_ID);
+  const fromNumber = readEnv(env.VOBIz_FROM_NUMBER) || readEnv(env.VOBIZ_FROM_NUMBER);
+  if (!apiKey || !accountId || !fromNumber) {
+    return null;
+  }
+  return {
+    apiKey,
+    accountId,
+    fromNumber,
+    groqKey: readEnv(env.GROQ_API_KEY),
+    edgeVoice: readEnv(env.EDGE_TTS_VOICE) || DEFAULT_EDGE_TTS_VOICE,
+  };
+}
+
+export function simulatedVobizDispatch(reason: string): VobizCallDispatch {
+  return {
+    ok: true,
+    provider: "sandbox_voice_sim",
+    mode: "simulated",
+    warning: reason,
+  };
+}
+
+export async function startVobizCall(
+  input: VobizCallRequest,
+  deps: VobizDispatchDependencies = {}
+): Promise<VobizCallDispatch> {
+  const config = getVobizApiConfig(deps.env ?? process.env);
+  if (!config) {
+    return simulatedVobizDispatch(
+      "Vobiz API credentials are not configured; used simulated provider."
+    );
+  }
+
+  const destination = normalizeVobizNumber(input.to);
+  if (!destination) {
+    return {
+      ok: false,
+      provider: "vobiz",
+      mode: "live",
+      error: "Destination phone number is not valid for Vobiz",
+    };
+  }
+
+  const answerUrl = (input.answerUrl ?? "").trim();
+  if (!isHttpUrl(answerUrl)) {
+    return {
+      ok: false,
+      provider: "vobiz",
+      mode: "live",
+      error: "Vobiz answer URL is not configured",
+    };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), deps.timeoutMs ?? VOBIZ_TIMEOUT_MS);
+  try {
+    const response = await (deps.fetchImpl ?? fetch)(
+      `${VOBIZ_API_BASE_URL}${VOBIZ_CALLS_PATH}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.apiKey}`,
+          "X-Account-ID": config.accountId,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          account_id: config.accountId,
+          from: config.fromNumber,
+          to: destination,
+          answer_url: answerUrl,
+          answer_method: "POST",
+        }),
+        signal: controller.signal,
+      }
+    );
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return {
+        ok: false,
+        provider: "vobiz",
+        mode: "live",
+        error: readProviderError(payload, response.status),
+      };
+    }
+
+    return {
+      ok: true,
+      provider: "vobiz",
+      mode: "live",
+      providerCallId: readProviderCallId(payload),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      provider: "vobiz",
+      mode: "live",
+      error: error instanceof Error ? error.message : "Vobiz call failed",
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export function escapeVobizXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+export function buildVobizXml(input: VobizXmlInput): string {
+  const config = getVobizApiConfig();
+  const voice = input.voice || config?.edgeVoice || DEFAULT_EDGE_TTS_VOICE;
+  const speak = `<Speak voice="${escapeVobizXml(voice)}">${escapeVobizXml(input.text)}</Speak>`;
+  if (input.end || !input.actionUrl) {
+    return `<?xml version="1.0" encoding="UTF-8"?><Response>${speak}<Hangup/></Response>`;
+  }
+
+  const audio = input.audioUrl ? `<Play>${escapeVobizXml(input.audioUrl)}</Play>` : speak;
+  const prompt = input.prompt
+    ? `<Speak voice="${escapeVobizXml(voice)}">${escapeVobizXml(input.prompt)}</Speak>`
+    : "";
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}<GetInput action="${escapeVobizXml(
+    input.actionUrl
+  )}" method="POST" inputType="dtmf speech" timeout="8" numDigits="1" speechTimeout="auto">${prompt}</GetInput></Response>`;
+}
+
+export function buildGroqEdgeTtsVobizXml(
+  input: VobizXmlInput & { groqKey?: string; ttsAudioUrl?: string }
+): string {
+  const config = getVobizApiConfig();
+  const groqKey = input.groqKey || config?.groqKey || "";
+  const text = groqKey
+    ? input.text
+    : "Thank you for your time. Our team will follow up with the confirmed details.";
+  return buildVobizXml({
+    ...input,
+    text,
+    audioUrl: input.ttsAudioUrl || input.audioUrl,
+  });
+}
+
+function asVobizPayload(payload: unknown): Record<string, unknown> {
+  if (typeof payload === "string") {
+    const trimmed = payload.trim();
+    if (!trimmed) {
+      return {};
+    }
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return Object.fromEntries(new URLSearchParams(trimmed));
+    }
+    return Object.fromEntries(new URLSearchParams(trimmed));
+  }
+  if (typeof payload === "object" && payload !== null && !Array.isArray(payload)) {
+    return payload as Record<string, unknown>;
+  }
+  return {};
+}
+
+function readVobizField(payload: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
+export function handleVobizWebhook(payload: unknown): VobizWebhookEvent {
+  const record = asVobizPayload(payload);
+  const callStatus = readVobizField(record, ["CallStatus", "call_status", "status"]);
+  const event = readVobizField(record, ["Event", "event", "type"]);
+  const normalizedStatus = (callStatus || event).toLowerCase();
+  const hangup =
+    /hangup|completed|done|ended|no-answer|no_answer|busy|failed/.test(normalizedStatus) ||
+    /hangup|completed|done|ended/.test(event.toLowerCase());
+
+  return {
+    providerCallId: readProviderCallId(record) ?? "",
+    callStatus: normalizedStatus,
+    dtmf: readVobizField(record, ["Digits", "digits", "dtmf", "DTMF"]),
+    speech: readVobizField(record, [
+      "Speech",
+      "speech",
+      "SpeechText",
+      "speech_text",
+      "recognition_text",
+      "utterance",
+    ]),
+    hangup,
+    payload: record,
+  };
+}
+
 export async function placeVobizCall(
   input: PlaceVobizCallInput,
   deps: VobizDependencies = {}

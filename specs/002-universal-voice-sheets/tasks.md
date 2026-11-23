@@ -16,7 +16,7 @@
   - **Goal:** Add `apps/web/tests/vobiz-bridge.test.mjs` and ensure `npm test && npm run typecheck && npm run build` pass.
   - **Verify:** `cd apps/web && npm test && npm run typecheck && npm run build` passes with 0 errors/failures.
 
-- [ ] **T007: Vobiz API Client (`apps/web/src/lib/vobiz.ts`)**
+- [x] **T007: Vobiz API Client (`apps/web/src/lib/vobiz.ts`)**
   - **Goal:** Create `apps/web/src/lib/vobiz.ts` with functions for outbound call trigger (POST to Vobiz `/calls`), VobizXML generation for the Groq + `edge-tts` TTS pipeline, a webhook handler for call status updates, and proper error handling with fallbacks. Use env vars `VOBIz_API_KEY`, `VOBIz_ACCOUNT_ID`, `VOBIz_FROM_NUMBER`, `GROQ_API_KEY`, `EDGE_TTS_VOICE`. Keep all secrets server-side and preserve simulated-provider fallback when keys are absent.
   - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
 
