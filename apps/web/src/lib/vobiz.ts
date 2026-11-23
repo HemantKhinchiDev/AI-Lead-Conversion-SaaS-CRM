@@ -283,9 +283,9 @@ export function buildVobizXml(input: VobizXmlInput): string {
   const prompt = input.prompt
     ? `<Speak voice="${escapeVobizXml(voice)}">${escapeVobizXml(input.prompt)}</Speak>`
     : "";
-  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}<GetInput action="${escapeVobizXml(
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${prompt}<Record action="${escapeVobizXml(
     input.actionUrl
-  )}" method="POST" inputType="dtmf speech" timeout="8" numDigits="1" speechTimeout="auto">${prompt}</GetInput></Response>`;
+  )}" method="POST" maxLength="12" timeout="3" playBeep="true" finishOnKey="#"/></Response>`;
 }
 
 export function buildGroqEdgeTtsVobizXml(

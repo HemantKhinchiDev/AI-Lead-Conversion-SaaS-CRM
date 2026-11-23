@@ -132,6 +132,56 @@ function getParam(url: URL, payload: Dict, ...names: string[]): string {
   return "";
 }
 
+
+function extractRecordUrl(payload: Dict): string {
+  for (const key of ["RecordUrl", "record_url", "RecordingUrl", "recording_url", "RecordFile", "record_file"]) {
+    const value = readText(payload[key], 1000);
+    if (value && isHttpUrl(value)) {
+      return value;
+    }
+  }
+  return "";
+}
+
+async function transcribeRecordingUrl(recordUrl: string, language: string): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY?.trim();
+  if (!apiKey || !recordUrl) {
+    return "";
+  }
+  try {
+    const audioRes = await fetch(recordUrl, { signal: AbortSignal.timeout(10000) });
+    if (!audioRes.ok) {
+      return "";
+    }
+    const arrayBuffer = await audioRes.arrayBuffer();
+    if (!arrayBuffer.byteLength) {
+      return "";
+    }
+    const contentType = audioRes.headers.get("content-type") || "audio/mpeg";
+    const ext = contentType.includes("wav") ? "wav" : "mp3";
+    const form = new FormData();
+    form.append("file", new Blob([arrayBuffer], { type: contentType }), `caller.${ext}`);
+    form.append("model", "whisper-large-v3-turbo");
+    const langCode = language.startsWith("hi") ? "hi" : language.startsWith("gu") ? "gu" : "en";
+    form.append("language", langCode);
+    form.append("response_format", "json");
+
+    const sttRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!sttRes.ok) {
+      return "";
+    }
+    const data = (await sttRes.json()) as { text?: unknown };
+    return readText(data?.text, 1000);
+  } catch {
+    return "";
+  }
+}
+
 function extractSpeech(payload: Dict): string {
   for (const key of [
     "Speech",
@@ -313,9 +363,9 @@ function buildVobizXml(input: VobizXmlInput): string {
   const prompt = input.prompt
     ? `<Speak voice="WOMAN">${escapeXml(input.prompt)}</Speak>`
     : "";
-  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}<GetDigits action="${escapeXml(
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${prompt}<Record action="${escapeXml(
     input.actionUrl
-  )}" method="POST" timeout="8" validDigits="0123456789#*">${prompt}</GetDigits></Response>`;
+  )}" method="POST" maxLength="12" timeout="3" playBeep="true" finishOnKey="#"/></Response>`;
 }
 
 function xmlResponse(xml: string): NextResponse {
@@ -364,7 +414,8 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
   const language = normalizeVoiceLanguage(context?.knowledgeBase?.language ?? "en-IN");
   const voice = VOICE_PROFILES[language].voice;
   const baseUrl = resolveBaseUrl(request);
-  const speech = extractSpeech(payload);
+  const recordUrl = extractRecordUrl(payload);
+  const speech = extractSpeech(payload) || (recordUrl ? await transcribeRecordingUrl(recordUrl, language) : "");
   const digits = extractDigits(payload);
   const turn = Math.max(1, Number.parseInt(getParam(url, payload, "turn") || "1", 10) || 1);
   const ending = isHangupEvent(payload) || digits === "9" || turn > MAX_TURNS;

@@ -128,8 +128,8 @@ test("vobiz xml endpoint returns escaped, bounded VobizXML with TTS and input co
   const route = source(XML_ROUTE);
   assert.match(route, /function buildVobizXml/);
   assert.match(route, /<Speak voice=/);
-  assert.match(route, /<GetDigits action=/);
-  assert.match(route, /inputType="dtmf speech"/);
+  assert.match(route, /<Record action=/);
+  assert.match(route, /maxLength="12" timeout="3" playBeep="true"/);
   assert.match(route, /method="POST"/);
   assert.match(route, /numDigits="1"/);
   assert.match(route, /speechTimeout="auto"/);
@@ -393,7 +393,7 @@ test("buildVobizXml escapes input, plays cached TTS audio and bounds the convers
   assert.match(prompt, /^<\?xml version="1.0" encoding="UTF-8"\?><Response>/);
   assert.ok(prompt.includes('<Play>https://example.test/audio/greeting.mp3</Play>'));
   assert.ok(prompt.includes('action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2"'));
-  assert.ok(prompt.includes('method="POST" inputType="dtmf speech" timeout="8" numDigits="1" speechTimeout="auto"'));
+  assert.ok(prompt.includes('method="POST" maxLength="12" timeout="3" playBeep="true"'));
   assert.ok(prompt.includes('<Speak voice="hi-IN-SwaraNeural">Press 1 or say yes</Speak>'));
   assert.ok(!prompt.includes("<private>"));
 
