@@ -710,3 +710,7 @@ Upgrade the platform from a real-estate-only lead dialer into an **Autonomous Mu
 ### 2. Required Verification & Guardrails
 - **Unit & XML Well-Formedness Check:** `apps/web/tests/vobiz-bridge.test.mjs` must assert `voice="WOMAN"`, matching `<GetDigits ...>...</GetDigits>` tags, and zero `<GetInput` occurrences.
 - **Cost Guardrail:** Never trigger live `placeVobizCall()` tests until `/api/voice/vobiz-xml` POST response passes XML tag verification.
+
+### 3. Spoken Conversation Loop (`<Record>` + Groq Whisper STT + Groq Voice Brain)
+- Because Vobiz Plivo-compatible XML rejects `<GetInput>` (`8011`) and `<GetDigits>` collects DTMF keypad digits only, spoken two-way conversations use `<Speak voice="WOMAN">` followed by `<Record action=".../api/voice/vobiz-xml?turn=N" method="POST" maxLength="12" timeout="3" playBeep="true" finishOnKey="#"/>`.
+- When Vobiz posts `RecordUrl` to the `action` callback, `/api/voice/vobiz-xml` downloads the caller audio, transcribes it via Groq `whisper-large-v3-turbo` (`/openai/v1/audio/transcriptions`), feeds the transcript into `generateVoiceResponse()`, and speaks the grounded reply via `<Speak voice="WOMAN">` in a bounded loop (`MAX_TURNS = 8`).

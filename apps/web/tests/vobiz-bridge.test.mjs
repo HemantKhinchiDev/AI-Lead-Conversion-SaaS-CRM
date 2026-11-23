@@ -131,7 +131,7 @@ test("vobiz xml endpoint returns escaped, bounded VobizXML with TTS and input co
   assert.match(route, /<Record action=/);
   assert.match(route, /maxLength="12" timeout="3" playBeep="true"/);
   assert.match(route, /method="POST"/);
-  assert.match(route, /numDigits="1"/);
+  assert.match(route, /finishOnKey="#"/);
   assert.match(route, /speechTimeout="auto"/);
   assert.match(route, /<Hangup\/>/);
   assert.match(route, /function escapeXml/);
