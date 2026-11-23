@@ -304,14 +304,14 @@ async function resolveCallContext(url: URL, payload: Dict): Promise<CallContext 
 }
 
 function buildVobizXml(input: VobizXmlInput): string {
-  const speak = `<Speak voice="${escapeXml(input.voice)}">${escapeXml(input.text)}</Speak>`;
+  const speak = `<Speak voice="WOMAN">${escapeXml(input.text)}</Speak>`;
   if (input.end || !input.actionUrl) {
     return `<?xml version="1.0" encoding="UTF-8"?><Response>${speak}<Hangup/></Response>`;
   }
 
   const audio = input.audioUrl ? `<Play>${escapeXml(input.audioUrl)}</Play>` : speak;
   const prompt = input.prompt
-    ? `<Speak voice="${escapeXml(input.voice)}">${escapeXml(input.prompt)}</Speak>`
+    ? `<Speak voice="WOMAN">${escapeXml(input.prompt)}</Speak>`
     : "";
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}<GetInput action="${escapeXml(
     input.actionUrl
