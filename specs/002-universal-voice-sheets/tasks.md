@@ -1,5 +1,21 @@
 # Phase 2 Autonomous Execution Queue
 
+- [ ] **T007: Vobiz API Client (`apps/web/src/lib/vobiz.ts`)**
+  - **Goal:** Create `apps/web/src/lib/vobiz.ts` with functions for outbound call trigger (POST to Vobiz `/calls`), VobizXML generation for the Groq + `edge-tts` TTS pipeline, a webhook handler for call status updates, and proper error handling with fallbacks. Use env vars `VOBIz_API_KEY`, `VOBIz_ACCOUNT_ID`, `VOBIz_FROM_NUMBER`, `GROQ_API_KEY`, `EDGE_TTS_VOICE`. Keep all secrets server-side and preserve simulated-provider fallback when keys are absent.
+  - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
+
+- [ ] **T008: Vobiz Outbound Trigger (`apps/web/src/app/api/voice/trigger/route.ts`)**
+  - **Goal:** Update `apps/web/src/app/api/voice/trigger/route.ts` to integrate `vobiz.ts` and make actual outbound calls via the Vobiz API instead of the mock. Handle success/failure responses, log the call ID, and return a proper JSON response while preserving consent gating and tenant isolation.
+  - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
+
+- [ ] **T009: VobizXML Endpoint & Webhook Events**
+  - **Goal:** Create `apps/web/src/app/api/voice/vobiz-xml/route.ts` generating VobizXML (Twilio-like XML) for the voice agent flow: play TTS via `edge-tts`, capture user input, route to Groq for the AI response, and loop until hangup. Also update `apps/web/src/app/api/voice/webhook/route.ts` to handle Vobiz webhook events (call completed, hangup, DTMF) and trigger Groq analysis on hangup.
+  - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
+
+- [ ] **T010: Vobiz Bridge Unit Tests (`apps/web/tests/vobiz-bridge.test.mjs`)**
+  - **Goal:** Add unit tests in `apps/web/tests/vobiz-bridge.test.mjs` covering the `vobiz.ts` functions (mock `fetch`), the trigger route, VobizXML generation, and the webhook handler. Ensure all tests pass with `npm test`.
+  - **Verify:** `cd apps/web && npm test` passes with 0 failures.
+
 - [x] **T001: Database Migration (SQL Gatekeeper)**
   - **Goal:** Create `supabase/migrations/002_universal_kb_and_outcomes.sql` defining `public.knowledge_bases` (with RLS) and adding `call_outcome`, `callback_datetime`, `ai_summary`, `full_transcript`, `sheet_id`, `sheet_row_index` to `public.leads` and `public.call_logs`.
   - **Verify:** File exists and is valid SQL; emit `[ACTION_REQUIRED: RUN_SQL_IN_SUPABASE]` with the exact SQL block and pause for user confirmation.
