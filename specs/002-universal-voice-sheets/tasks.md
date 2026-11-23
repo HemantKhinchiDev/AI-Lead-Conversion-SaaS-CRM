@@ -24,7 +24,7 @@
   - **Goal:** Update `apps/web/src/app/api/voice/trigger/route.ts` to integrate `vobiz.ts` and make actual outbound calls via the Vobiz API instead of the mock. Handle success/failure responses, log the call ID, and return a proper JSON response while preserving consent gating and tenant isolation.
   - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
 
-- [ ] **T009: VobizXML Endpoint & Webhook Events**
+- [x] **T009: VobizXML Endpoint & Webhook Events**
   - **Goal:** Create `apps/web/src/app/api/voice/vobiz-xml/route.ts` generating VobizXML (Twilio-like XML) for the voice agent flow: play TTS via `edge-tts`, capture user input, route to Groq for the AI response, and loop until hangup. Also update `apps/web/src/app/api/voice/webhook/route.ts` to handle Vobiz webhook events (call completed, hangup, DTMF) and trigger Groq analysis on hangup.
   - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
 
