@@ -12,7 +12,7 @@
   - **Goal:** Create `apps/web/src/app/api/voice/vobiz-xml/route.ts` (VobizXML + Groq + `edge-tts`) and update `apps/web/src/app/api/voice/webhook/route.ts`.
   - **Verify:** New endpoint and webhook updates in place.
 
-- [ ] **T014: Vobiz Bridge Tests (`apps/web/tests/vobiz-bridge.test.mjs`)**
+- [x] **T014: Vobiz Bridge Tests (`apps/web/tests/vobiz-bridge.test.mjs`)**
   - **Goal:** Add `apps/web/tests/vobiz-bridge.test.mjs` and ensure `npm test && npm run typecheck && npm run build` pass.
   - **Verify:** `cd apps/web && npm test && npm run typecheck && npm run build` passes with 0 errors/failures.
 
