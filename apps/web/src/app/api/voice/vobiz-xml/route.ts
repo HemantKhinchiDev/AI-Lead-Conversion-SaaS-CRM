@@ -161,13 +161,51 @@ function extractRecordUrl(payload: Dict): string {
   return "";
 }
 
+async function resolveLatestVobizRecordingUrl(callUuid: string): Promise<string> {
+  const authId = process.env.VOBIZ_AUTH_ID?.trim();
+  const authToken = process.env.VOBIZ_AUTH_TOKEN?.trim();
+  if (!authId || !authToken || !callUuid) {
+    return "";
+  }
+  try {
+    const endpoint = `https://api.vobiz.ai/api/v1/Account/${encodeURIComponent(
+      authId
+    )}/Recording/?call_uuid=${encodeURIComponent(callUuid)}&limit=1`;
+    const res = await fetch(endpoint, {
+      headers: { "X-Auth-ID": authId, "X-Auth-Token": authToken },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) {
+      return "";
+    }
+    const json = (await res.json()) as {
+      objects?: Array<{ recording_url?: unknown }>;
+    };
+    const recUrl = readText(json?.objects?.[0]?.recording_url, 1000);
+    return recUrl && isHttpUrl(recUrl) ? recUrl : "";
+  } catch {
+    return "";
+  }
+}
+
 async function transcribeRecordingUrl(recordUrl: string, language: string): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY?.trim();
   if (!apiKey || !recordUrl) {
     return "";
   }
+  const authId = process.env.VOBIZ_AUTH_ID?.trim();
+  const authToken = process.env.VOBIZ_AUTH_TOKEN?.trim();
+  const vobizHeaders: Record<string, string> =
+    authId && authToken ? { "X-Auth-ID": authId, "X-Auth-Token": authToken } : {};
+
   try {
-    const audioRes = await fetch(recordUrl, { signal: AbortSignal.timeout(10000) });
+    let audioRes = await fetch(recordUrl, { signal: AbortSignal.timeout(10000) });
+    if (!audioRes.ok && Object.keys(vobizHeaders).length > 0) {
+      audioRes = await fetch(recordUrl, {
+        headers: vobizHeaders,
+        signal: AbortSignal.timeout(10000),
+      });
+    }
     if (!audioRes.ok) {
       return "";
     }
@@ -432,7 +470,10 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
   const language = normalizeVoiceLanguage(context?.knowledgeBase?.language ?? "en-IN");
   const voice = VOICE_PROFILES[language].voice;
   const baseUrl = resolveBaseUrl(request);
-  const recordUrl = extractRecordUrl(payload);
+  const callUuid = getParam(url, payload, "CallUUID", "call_uuid", "RequestUUID", "request_uuid");
+  const recordUrl =
+    extractRecordUrl(payload) ||
+    (turn > 1 && callUuid ? await resolveLatestVobizRecordingUrl(callUuid) : "");
   const speech = extractSpeech(payload) || (recordUrl ? await transcribeRecordingUrl(recordUrl, language) : "");
   const digits = extractDigits(payload);
   const turn = Math.max(1, Number.parseInt(getParam(url, payload, "turn") || "1", 10) || 1);
