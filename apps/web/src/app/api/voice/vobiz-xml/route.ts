@@ -470,13 +470,13 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
   const language = normalizeVoiceLanguage(context?.knowledgeBase?.language ?? "en-IN");
   const voice = VOICE_PROFILES[language].voice;
   const baseUrl = resolveBaseUrl(request);
+  const turn = Math.max(1, Number.parseInt(getParam(url, payload, "turn") || "1", 10) || 1);
   const callUuid = getParam(url, payload, "CallUUID", "call_uuid", "RequestUUID", "request_uuid");
   const recordUrl =
     extractRecordUrl(payload) ||
     (turn > 1 && callUuid ? await resolveLatestVobizRecordingUrl(callUuid) : "");
   const speech = extractSpeech(payload) || (recordUrl ? await transcribeRecordingUrl(recordUrl, language) : "");
   const digits = extractDigits(payload);
-  const turn = Math.max(1, Number.parseInt(getParam(url, payload, "turn") || "1", 10) || 1);
   const silentRetryLimitExceeded = turn >= 5 && !speech && !digits;
   const ending = isHangupEvent(payload) || digits === "9" || turn > MAX_TURNS || silentRetryLimitExceeded;
 
@@ -505,30 +505,15 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
       });
   } else {
     reply = "I didn't catch that. Please ask your question after the beep, or press 9 to end the call.";
-  } else if (speech && context) {
-    const response = await generateVoiceResponse({
-      message: speech,
-      language,
-      knowledgeBase: context.knowledgeBase,
-      leadName: context.leadName,
-      history: parseHistory(context.transcript),
-    });
-    reply = response.reply;
-  } else if (speech) {
-    reply = "Thank you for sharing that. Our team will contact you with the confirmed details.";
-  } else {
-    reply =
-      readText(context?.knowledgeBase?.opening_script, 600) ||
-      buildFallbackReply({
-        message: "hello",
-        language,
-        knowledgeBase: context?.knowledgeBase ?? null,
-        leadName: context?.leadName ?? "",
-      });
   }
 
-  const tts = await synthesizeSpeech(reply, language);
-  const audioUrl = tts.audioBase64 ? cacheAudio(tts.audioBase64, baseUrl) : undefined;
+  let audioUrl: string | undefined;
+  if (context && process.env.ENABLE_EDGE_TTS_VOBIZ === "1") {
+    const tts = await synthesizeSpeech({ text: reply, voice });
+    if (tts.audioBase64) {
+      audioUrl = cacheAudio(tts.audioBase64, baseUrl);
+    }
+  }
 
   if (context) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
@@ -537,13 +522,13 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
       const supabase = createClient(supabaseUrl, supabaseKey, {
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
       });
-      const line = speech ? `Customer: ${speech}\nAgent: ${reply}` : `Agent: ${reply}`;
-      const transcript = `${context.transcript ? `${context.transcript}\n` : ""}${line}`.slice(
-        -MAX_TRANSCRIPT_CHARS
-      );
+      const line = speech ? `Customer: ${speech}
+Agent: ${reply}` : `Agent: ${reply}`;
+      const nextTranscript = [context.transcript, line].filter(Boolean).join("
+").slice(-MAX_TRANSCRIPT_CHARS);
       await supabase
         .from("call_logs")
-        .update({ transcript, full_transcript: transcript })
+        .update({ transcript: nextTranscript, full_transcript: nextTranscript })
         .eq("id", context.callId)
         .eq("tenant_id", context.tenantId);
     }
