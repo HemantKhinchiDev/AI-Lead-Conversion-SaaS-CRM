@@ -1,6 +1,6 @@
 # Phase 2 Autonomous Execution Queue
 
-- [ ] **T011: Vobiz API Client (`apps/web/src/lib/vobiz.ts`)**
+- [x] **T011: Vobiz API Client (`apps/web/src/lib/vobiz.ts`)**
   - **Goal:** Create `apps/web/src/lib/vobiz.ts` using `VOBIZ_AUTH_ID`, `VOBIZ_AUTH_TOKEN`, `VOBIZ_FROM_NUMBER` from `process.env`, referencing the existing `plivo.ts` implementation.
   - **Verify:** File exists and uses the specified environment variables with secrets kept server-side.
 
