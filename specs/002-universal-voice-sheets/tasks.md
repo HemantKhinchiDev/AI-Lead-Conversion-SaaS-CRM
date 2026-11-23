@@ -4,7 +4,7 @@
   - **Goal:** Create `apps/web/src/lib/vobiz.ts` using `VOBIZ_AUTH_ID`, `VOBIZ_AUTH_TOKEN`, `VOBIZ_FROM_NUMBER` from `process.env`, referencing the existing `plivo.ts` implementation.
   - **Verify:** File exists and uses the specified environment variables with secrets kept server-side.
 
-- [ ] **T012: Vobiz Outbound Trigger (`apps/web/src/app/api/voice/trigger/route.ts`)**
+- [x] **T012: Vobiz Outbound Trigger (`apps/web/src/app/api/voice/trigger/route.ts`)**
   - **Goal:** Update `apps/web/src/app/api/voice/trigger/route.ts` to place Vobiz outbound calls and log `provider: "vobiz"` in `call_logs`.
   - **Verify:** Outbound call path and `call_logs` provider value verified.
 

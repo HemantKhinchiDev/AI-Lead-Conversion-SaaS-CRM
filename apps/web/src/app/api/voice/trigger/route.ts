@@ -1,10 +1,43 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getPlivoConfig, normalizePlivoNumber, placePlivoCall } from "../../../../lib/plivo";
+import { getVobizConfig, normalizeVobizNumber, placeVobizCall } from "../../../../lib/vobiz";
 import { evaluateVoiceEligibility } from "../../../../lib/voiceGuard";
 import { analyzeCall, callOutcomeFields } from "../../../../lib/callAnalysis";
 
 export const runtime = "nodejs";
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function resolveVobizAnswerUrl(req: Request): string {
+  const configured = process.env.VOBIZ_ANSWER_URL?.trim() ?? "";
+  if (isHttpUrl(configured)) {
+    return configured;
+  }
+
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ?? "";
+  if (isHttpUrl(baseUrl)) {
+    return `${baseUrl.replace(/\/+$/, "")}/api/voice/vobiz-xml`;
+  }
+
+  try {
+    const requestUrl = new URL(req.url);
+    if (isHttpUrl(requestUrl.origin)) {
+      return `${requestUrl.origin}/api/voice/vobiz-xml`;
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
 
 export async function POST(req: Request) {
   try {
@@ -79,6 +112,89 @@ export async function POST(req: Request) {
     const guard = evaluateVoiceEligibility(lead, tenantId);
     if (!guard.allowed) {
       return NextResponse.json({ error: guard.error }, { status: guard.status });
+    }
+
+    const vobizConfig = getVobizConfig();
+    const vobizDestination = normalizeVobizNumber(lead.phone);
+    const vobizAnswerUrl = resolveVobizAnswerUrl(req);
+
+    if (vobizConfig && vobizDestination && vobizAnswerUrl) {
+      const dispatch = await placeVobizCall(
+        { to: vobizDestination, answerUrl: vobizAnswerUrl },
+        { config: { ...vobizConfig, answerUrl: vobizAnswerUrl } }
+      );
+
+      if (!dispatch.ok) {
+        const { data: failedRow } = await supabase
+          .from("call_logs")
+          .insert([
+            {
+              tenant_id: tenantId,
+              user_id: userData.user.id,
+              lead_id: lead.id,
+              provider: "vobiz",
+              mode: "live",
+              call_status: "failed",
+              duration_seconds: 0,
+              transcript: null,
+              ai_summary: `Vobiz outbound call failed: ${dispatch.error ?? "unknown error"}`,
+              next_action: "retry",
+            },
+          ])
+          .select()
+          .single();
+
+        return NextResponse.json(
+          {
+            error: dispatch.error ?? "Vobiz call failed",
+            call_id: failedRow?.id ?? null,
+            mode: "live",
+            provider: "vobiz",
+          },
+          { status: 502 }
+        );
+      }
+
+      const providerCallSuffix = dispatch.providerCallId
+        ? ` Provider call ID: ${dispatch.providerCallId}`
+        : "";
+      const { data: callRow, error: insertErr } = await supabase
+        .from("call_logs")
+        .insert([
+          {
+            tenant_id: tenantId,
+            user_id: userData.user.id,
+            lead_id: lead.id,
+            provider: "vobiz",
+            mode: "live",
+            call_status: "queued",
+            duration_seconds: 0,
+            transcript: null,
+            ai_summary: `Outbound AI call queued via Vobiz.${providerCallSuffix}`,
+            next_action: "await_webhook",
+          },
+        ])
+        .select()
+        .single();
+
+      if (insertErr) {
+        return NextResponse.json({ error: insertErr.message }, { status: 500 });
+      }
+
+      await supabase
+        .from("leads")
+        .update({ status: "contacted", updated_at: new Date().toISOString() })
+        .eq("id", lead.id)
+        .eq("tenant_id", tenantId);
+
+      return NextResponse.json({
+        call_id: callRow.id,
+        status: callRow.call_status,
+        ai_summary: callRow.ai_summary,
+        mode: "live",
+        provider: "vobiz",
+        provider_call_id: dispatch.providerCallId ?? null,
+      });
     }
 
     const plivoConfig = getPlivoConfig();
@@ -160,9 +276,11 @@ export async function POST(req: Request) {
       });
     }
 
-    const sandboxWarning = plivoConfig
-      ? "Lead phone number is not valid for Plivo; used simulated mode."
-      : "Plivo is not configured; used simulated mode.";
+    const sandboxWarning = vobizConfig
+      ? "Vobiz is configured but the answer URL or destination is unavailable; used simulated mode."
+      : plivoConfig
+        ? "Plivo is not configured; used simulated mode."
+        : "Vobiz and Plivo are not configured; used simulated mode.";
 
     const transcript = `AI Agent: Namaste ${lead.full_name}, following up on your recent enquiry. Lead: Yes, I am interested and would like a callback.`;
     const analysis = await analyzeCall(
