@@ -134,9 +134,27 @@ function getParam(url: URL, payload: Dict, ...names: string[]): string {
 
 
 function extractRecordUrl(payload: Dict): string {
-  for (const key of ["RecordUrl", "record_url", "RecordingUrl", "recording_url", "RecordFile", "record_file"]) {
+  for (const key of [
+    "RecordUrl",
+    "record_url",
+    "RecordingUrl",
+    "recording_url",
+    "RecordFile",
+    "record_file",
+    "FileUrl",
+    "file_url",
+    "AudioUrl",
+    "audio_url",
+    "url",
+  ]) {
     const value = readText(payload[key], 1000);
     if (value && isHttpUrl(value)) {
+      return value;
+    }
+  }
+  for (const rawVal of Object.values(payload)) {
+    const value = readText(rawVal, 1000);
+    if (value && isHttpUrl(value) && /record|audio|mp3|wav|vobiz/i.test(value)) {
       return value;
     }
   }
@@ -418,13 +436,34 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
   const speech = extractSpeech(payload) || (recordUrl ? await transcribeRecordingUrl(recordUrl, language) : "");
   const digits = extractDigits(payload);
   const turn = Math.max(1, Number.parseInt(getParam(url, payload, "turn") || "1", 10) || 1);
-  const ending = isHangupEvent(payload) || digits === "9" || turn > MAX_TURNS;
+  const silentRetryLimitExceeded = turn >= 5 && !speech && !digits;
+  const ending = isHangupEvent(payload) || digits === "9" || turn > MAX_TURNS || silentRetryLimitExceeded;
 
   let reply: string;
   if (ending) {
     reply =
       readText(context?.knowledgeBase?.closing_script, 500) ||
       "Thank you for your time. Our team will follow up with the confirmed details. Goodbye.";
+  } else if (speech) {
+    const response = await generateVoiceResponse({
+      message: speech,
+      language,
+      knowledgeBase: context?.knowledgeBase ?? null,
+      leadName: context?.leadName ?? "",
+      history: parseHistory(context?.transcript ?? ""),
+    });
+    reply = response.reply;
+  } else if (turn === 1) {
+    reply =
+      readText(context?.knowledgeBase?.opening_script, 600) ||
+      buildFallbackReply({
+        message: "hello",
+        language,
+        knowledgeBase: context?.knowledgeBase ?? null,
+        leadName: context?.leadName,
+      });
+  } else {
+    reply = "I didn't catch that. Please ask your question after the beep, or press 9 to end the call.";
   } else if (speech && context) {
     const response = await generateVoiceResponse({
       message: speech,
