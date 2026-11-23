@@ -28,7 +28,7 @@
   - **Goal:** Create `apps/web/src/app/api/voice/vobiz-xml/route.ts` generating VobizXML (Twilio-like XML) for the voice agent flow: play TTS via `edge-tts`, capture user input, route to Groq for the AI response, and loop until hangup. Also update `apps/web/src/app/api/voice/webhook/route.ts` to handle Vobiz webhook events (call completed, hangup, DTMF) and trigger Groq analysis on hangup.
   - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
 
-- [ ] **T010: Vobiz Bridge Unit Tests (`apps/web/tests/vobiz-bridge.test.mjs`)**
+- [x] **T010: Vobiz Bridge Unit Tests (`apps/web/tests/vobiz-bridge.test.mjs`)**
   - **Goal:** Add unit tests in `apps/web/tests/vobiz-bridge.test.mjs` covering the `vobiz.ts` functions (mock `fetch`), the trigger route, VobizXML generation, and the webhook handler. Ensure all tests pass with `npm test`.
   - **Verify:** `cd apps/web && npm test` passes with 0 failures.
 
