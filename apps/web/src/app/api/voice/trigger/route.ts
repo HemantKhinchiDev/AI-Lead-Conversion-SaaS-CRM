@@ -19,6 +19,15 @@ function resolveVobizAnswerUrl(req: Request): string {
     return `${baseUrl.replace(/\/+$/, "")}/api/voice/vobiz-xml`;
   }
 
+  try {
+    const origin = new URL(req.url).origin;
+    if (isPublicHttpUrl(origin)) {
+      return `${origin.replace(/\/+$/, "")}/api/voice/vobiz-xml`;
+    }
+  } catch {
+    return "";
+  }
+
   return "";
 }
 

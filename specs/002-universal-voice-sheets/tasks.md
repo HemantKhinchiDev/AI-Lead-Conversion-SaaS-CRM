@@ -20,7 +20,7 @@
   - **Goal:** Create `apps/web/src/lib/vobiz.ts` with functions for outbound call trigger (POST to Vobiz `/calls`), VobizXML generation for the Groq + `edge-tts` TTS pipeline, a webhook handler for call status updates, and proper error handling with fallbacks. Use env vars `VOBIz_API_KEY`, `VOBIz_ACCOUNT_ID`, `VOBIz_FROM_NUMBER`, `GROQ_API_KEY`, `EDGE_TTS_VOICE`. Keep all secrets server-side and preserve simulated-provider fallback when keys are absent.
   - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
 
-- [ ] **T008: Vobiz Outbound Trigger (`apps/web/src/app/api/voice/trigger/route.ts`)**
+- [x] **T008: Vobiz Outbound Trigger (`apps/web/src/app/api/voice/trigger/route.ts`)**
   - **Goal:** Update `apps/web/src/app/api/voice/trigger/route.ts` to integrate `vobiz.ts` and make actual outbound calls via the Vobiz API instead of the mock. Handle success/failure responses, log the call ID, and return a proper JSON response while preserving consent gating and tenant isolation.
   - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
 
