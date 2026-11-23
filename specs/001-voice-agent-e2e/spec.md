@@ -545,3 +545,7 @@ These contracts are binding because `docs/PRD.md` Task 1.3 names the endpoints a
 - [ ] No secret is present in the repository, browser bundle or logs.
 - [ ] No real call, message or paid API was used.
 - [ ] Documentation and task status are updated only after the gates pass.
+
+### Vobiz XML Compatibility Amendment (2026-11-23)
+- `/api/voice/vobiz-xml` MUST render `<Speak voice="WOMAN">` and matching `<GetDigits action="..." method="POST" timeout="8" numDigits="1" validDigits="0123456789#*">...</GetDigits>`.
+- `/api/voice/vobiz-xml` MUST NOT emit `<GetInput>`, `inputType="dtmf speech"`, `speechTimeout`, or `*-Neural` voice names (which cause Vobiz `Invalid Answer XML` drops on answer).

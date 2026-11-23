@@ -696,3 +696,17 @@ Upgrade the platform from a real-estate-only lead dialer into an **Autonomous Mu
    - Adds 1-click **"Export to Google Sheet / CSV"** on the Dashboard.
 5. **End-to-End Verification (`phase1-full.live.spec.ts` & `phase2-universal-voice.live.spec.ts`)**:
    - Verifies KB training, simulated AI call producing `INTERESTED` outcome + summary in table, export action, and Phase 1 regression checks via Playwright.
+
+---
+
+## Update (2026-11-23): Vobiz Outbound Voice XML Schema (`apps/web/src/app/api/voice/vobiz-xml/route.ts`)
+
+### 1. Vobiz Plivo-Compatible XML Rules (Mandatory for OpenCode & Tests)
+- **Provider:** Vobiz (`https://console.vobiz.ai/`) uses a Plivo-compatible XML parser.
+- **Supported Voice Attribute:** `<Speak voice="WOMAN">` (or `"MAN"`). Neural strings such as `en-IN-NeerjaNeural` or `hi-IN-*` MUST NOT be emitted because Vobiz rejects them with `Invalid Answer XML` (Hangup Code `8011`) immediately upon call pickup.
+- **Supported Input Tag:** `<GetDigits action="..." method="POST" timeout="8" numDigits="1" validDigits="0123456789#*">` with matching `</GetDigits>` closing tag.
+- **Forbidden Tags & Attributes:** `<GetInput>`, `</GetInput>`, `inputType="dtmf speech"`, and `speechTimeout="auto"` MUST NOT be used in Vobiz XML responses; any tag mismatch or unsupported attribute triggers immediate `Invalid Answer XML` hangup.
+
+### 2. Required Verification & Guardrails
+- **Unit & XML Well-Formedness Check:** `apps/web/tests/vobiz-bridge.test.mjs` must assert `voice="WOMAN"`, matching `<GetDigits ...>...</GetDigits>` tags, and zero `<GetInput` occurrences.
+- **Cost Guardrail:** Never trigger live `placeVobizCall()` tests until `/api/voice/vobiz-xml` POST response passes XML tag verification.
