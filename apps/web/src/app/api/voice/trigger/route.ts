@@ -4,36 +4,19 @@ import { getPlivoConfig, normalizePlivoNumber, placePlivoCall } from "../../../.
 import { getVobizConfig, normalizeVobizNumber, placeVobizCall } from "../../../../lib/vobiz";
 import { evaluateVoiceEligibility } from "../../../../lib/voiceGuard";
 import { analyzeCall, callOutcomeFields } from "../../../../lib/callAnalysis";
+import { isPublicHttpUrl } from "../../../../lib/knowledgeBase";
 
 export const runtime = "nodejs";
 
-function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
 function resolveVobizAnswerUrl(req: Request): string {
   const configured = process.env.VOBIZ_ANSWER_URL?.trim() ?? "";
-  if (isHttpUrl(configured)) {
+  if (isPublicHttpUrl(configured)) {
     return configured;
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ?? "";
-  if (isHttpUrl(baseUrl)) {
+  if (isPublicHttpUrl(baseUrl)) {
     return `${baseUrl.replace(/\/+$/, "")}/api/voice/vobiz-xml`;
-  }
-
-  try {
-    const requestUrl = new URL(req.url);
-    if (isHttpUrl(requestUrl.origin)) {
-      return `${requestUrl.origin}/api/voice/vobiz-xml`;
-    }
-  } catch {
-    return "";
   }
 
   return "";
