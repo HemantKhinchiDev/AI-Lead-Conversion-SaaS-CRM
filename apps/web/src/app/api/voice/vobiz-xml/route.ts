@@ -313,9 +313,9 @@ function buildVobizXml(input: VobizXmlInput): string {
   const prompt = input.prompt
     ? `<Speak voice="WOMAN">${escapeXml(input.prompt)}</Speak>`
     : "";
-  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}<GetInput action="${escapeXml(
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}<GetDigits action="${escapeXml(
     input.actionUrl
-  )}" method="POST" inputType="dtmf speech" timeout="8" numDigits="1" speechTimeout="auto">${prompt}</GetDigits></Response>`;
+  )}" method="POST" timeout="8" validDigits="0123456789#*">${prompt}</GetDigits></Response>`;
 }
 
 function xmlResponse(xml: string): NextResponse {
