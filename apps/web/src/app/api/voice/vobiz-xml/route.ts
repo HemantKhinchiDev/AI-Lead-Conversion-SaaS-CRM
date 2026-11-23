@@ -509,7 +509,7 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
 
   let audioUrl: string | undefined;
   if (context && process.env.ENABLE_EDGE_TTS_VOBIZ === "1") {
-    const tts = await synthesizeSpeech({ text: reply, voice });
+    const tts = await synthesizeSpeech(reply, language);
     if (tts.audioBase64) {
       audioUrl = cacheAudio(tts.audioBase64, baseUrl);
     }
@@ -522,10 +522,8 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
       const supabase = createClient(supabaseUrl, supabaseKey, {
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
       });
-      const line = speech ? `Customer: ${speech}
-Agent: ${reply}` : `Agent: ${reply}`;
-      const nextTranscript = [context.transcript, line].filter(Boolean).join("
-").slice(-MAX_TRANSCRIPT_CHARS);
+      const line = speech ? `Customer: ${speech}\nAgent: ${reply}` : `Agent: ${reply}`;
+      const nextTranscript = [context.transcript, line].filter(Boolean).join("\n").slice(-MAX_TRANSCRIPT_CHARS);
       await supabase
         .from("call_logs")
         .update({ transcript: nextTranscript, full_transcript: nextTranscript })

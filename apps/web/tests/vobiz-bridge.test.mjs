@@ -145,7 +145,7 @@ test("vobiz xml endpoint returns escaped, bounded VobizXML with TTS and input co
 test("vobiz xml endpoint grounds responses in tenant knowledge and caches edge-tts audio locally", () => {
   const route = source(XML_ROUTE);
   assert.match(route, /generateVoiceResponse\(/);
-  assert.match(route, /synthesizeSpeech\(\{ text: reply, voice \}\)/);
+  assert.match(route, /synthesizeSpeech\(reply, language\)/);
   assert.match(route, /normalizeVoiceLanguage\(/);
   assert.match(route, /VOICE_PROFILES\[language\]\.voice/);
   assert.match(route, /buildFallbackReply\(/);
