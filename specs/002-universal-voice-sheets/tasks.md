@@ -8,7 +8,7 @@
   - **Goal:** Update `apps/web/src/app/api/voice/trigger/route.ts` to place Vobiz outbound calls and log `provider: "vobiz"` in `call_logs`.
   - **Verify:** Outbound call path and `call_logs` provider value verified.
 
-- [ ] **T013: VobizXML Endpoint & Webhook Update**
+- [x] **T013: VobizXML Endpoint & Webhook Update**
   - **Goal:** Create `apps/web/src/app/api/voice/vobiz-xml/route.ts` (VobizXML + Groq + `edge-tts`) and update `apps/web/src/app/api/voice/webhook/route.ts`.
   - **Verify:** New endpoint and webhook updates in place.
 
