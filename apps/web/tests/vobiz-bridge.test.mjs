@@ -128,7 +128,7 @@ test("vobiz xml endpoint returns escaped, bounded VobizXML with TTS and input co
   const route = source(XML_ROUTE);
   assert.match(route, /function buildVobizXml/);
   assert.match(route, /<Speak voice=/);
-  assert.match(route, /<GetInput action=/);
+  assert.match(route, /<GetDigits action=/);
   assert.match(route, /inputType="dtmf speech"/);
   assert.match(route, /method="POST"/);
   assert.match(route, /numDigits="1"/);
@@ -407,7 +407,7 @@ test("buildVobizXml escapes input, plays cached TTS audio and bounds the convers
       '<Speak voice="en-IN-NeerjaNeural">Goodbye &lt;lead&gt; &amp; &quot;friends&quot;</Speak><Hangup/>'
     )
   );
-  assert.ok(!ending.includes("<GetInput"));
+  assert.ok(!ending.includes("<GetDigits"));
 
   const tts = buildGroqEdgeTtsVobizXml({
     text: "Invented price",

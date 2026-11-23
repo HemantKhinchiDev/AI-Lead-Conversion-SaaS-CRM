@@ -315,7 +315,7 @@ function buildVobizXml(input: VobizXmlInput): string {
     : "";
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}<GetInput action="${escapeXml(
     input.actionUrl
-  )}" method="POST" inputType="dtmf speech" timeout="8" numDigits="1" speechTimeout="auto">${prompt}</GetInput></Response>`;
+  )}" method="POST" inputType="dtmf speech" timeout="8" numDigits="1" speechTimeout="auto">${prompt}</GetDigits></Response>`;
 }
 
 function xmlResponse(xml: string): NextResponse {
