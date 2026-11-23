@@ -1,5 +1,21 @@
 # Phase 2 Autonomous Execution Queue
 
+- [ ] **T011: Vobiz API Client (`apps/web/src/lib/vobiz.ts`)**
+  - **Goal:** Create `apps/web/src/lib/vobiz.ts` using `VOBIZ_AUTH_ID`, `VOBIZ_AUTH_TOKEN`, `VOBIZ_FROM_NUMBER` from `process.env`, referencing the existing `plivo.ts` implementation.
+  - **Verify:** File exists and uses the specified environment variables with secrets kept server-side.
+
+- [ ] **T012: Vobiz Outbound Trigger (`apps/web/src/app/api/voice/trigger/route.ts`)**
+  - **Goal:** Update `apps/web/src/app/api/voice/trigger/route.ts` to place Vobiz outbound calls and log `provider: "vobiz"` in `call_logs`.
+  - **Verify:** Outbound call path and `call_logs` provider value verified.
+
+- [ ] **T013: VobizXML Endpoint & Webhook Update**
+  - **Goal:** Create `apps/web/src/app/api/voice/vobiz-xml/route.ts` (VobizXML + Groq + `edge-tts`) and update `apps/web/src/app/api/voice/webhook/route.ts`.
+  - **Verify:** New endpoint and webhook updates in place.
+
+- [ ] **T014: Vobiz Bridge Tests (`apps/web/tests/vobiz-bridge.test.mjs`)**
+  - **Goal:** Add `apps/web/tests/vobiz-bridge.test.mjs` and ensure `npm test && npm run typecheck && npm run build` pass.
+  - **Verify:** `cd apps/web && npm test && npm run typecheck && npm run build` passes with 0 errors/failures.
+
 - [ ] **T007: Vobiz API Client (`apps/web/src/lib/vobiz.ts`)**
   - **Goal:** Create `apps/web/src/lib/vobiz.ts` with functions for outbound call trigger (POST to Vobiz `/calls`), VobizXML generation for the Groq + `edge-tts` TTS pipeline, a webhook handler for call status updates, and proper error handling with fallbacks. Use env vars `VOBIz_API_KEY`, `VOBIz_ACCOUNT_ID`, `VOBIz_FROM_NUMBER`, `GROQ_API_KEY`, `EDGE_TTS_VOICE`. Keep all secrets server-side and preserve simulated-provider fallback when keys are absent.
   - **Verify:** `cd apps/web && npm run build` passes with 0 errors.
