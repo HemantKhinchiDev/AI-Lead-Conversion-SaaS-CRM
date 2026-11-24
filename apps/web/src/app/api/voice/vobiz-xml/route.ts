@@ -167,25 +167,32 @@ async function resolveLatestVobizRecordingUrl(callUuid: string): Promise<string>
   if (!authId || !authToken || !callUuid) {
     return "";
   }
-  try {
-    const endpoint = `https://api.vobiz.ai/api/v1/Account/${encodeURIComponent(
-      authId
-    )}/Recording/?call_uuid=${encodeURIComponent(callUuid)}&limit=1`;
-    const res = await fetch(endpoint, {
-      headers: { "X-Auth-ID": authId, "X-Auth-Token": authToken },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) {
-      return "";
+  const endpoint = `https://api.vobiz.ai/api/v1/Account/${encodeURIComponent(
+    authId
+  )}/Recording/?call_uuid=${encodeURIComponent(callUuid)}&limit=1`;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const res = await fetch(endpoint, {
+        headers: { "X-Auth-ID": authId, "X-Auth-Token": authToken },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as {
+          objects?: Array<{ recording_url?: unknown }>;
+        };
+        const recUrl = readText(json?.objects?.[0]?.recording_url, 1000);
+        if (recUrl && isHttpUrl(recUrl)) {
+          return recUrl;
+        }
+      }
+    } catch {
+      // retry below
     }
-    const json = (await res.json()) as {
-      objects?: Array<{ recording_url?: unknown }>;
-    };
-    const recUrl = readText(json?.objects?.[0]?.recording_url, 1000);
-    return recUrl && isHttpUrl(recUrl) ? recUrl : "";
-  } catch {
-    return "";
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+    }
   }
+  return "";
 }
 
 async function transcribeRecordingUrl(recordUrl: string, language: string): Promise<string> {
@@ -218,8 +225,11 @@ async function transcribeRecordingUrl(recordUrl: string, language: string): Prom
     const form = new FormData();
     form.append("file", new Blob([arrayBuffer], { type: contentType }), `caller.${ext}`);
     form.append("model", "whisper-large-v3-turbo");
-    const langCode = language.startsWith("hi") ? "hi" : language.startsWith("gu") ? "gu" : "en";
-    form.append("language", langCode);
+    if (language === "hi-IN") {
+      form.append("language", "hi");
+    } else if (language === "gu-IN") {
+      form.append("language", "gu");
+    }
     form.append("response_format", "json");
 
     const sttRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
@@ -508,7 +518,7 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
   }
 
   let audioUrl: string | undefined;
-  if (context && process.env.ENABLE_EDGE_TTS_VOBIZ === "1") {
+  if (process.env.ENABLE_EDGE_TTS_VOBIZ !== "0") {
     const tts = await synthesizeSpeech(reply, language);
     if (tts.audioBase64) {
       audioUrl = cacheAudio(tts.audioBase64, baseUrl);
