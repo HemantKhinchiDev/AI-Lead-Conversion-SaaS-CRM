@@ -426,12 +426,14 @@ function buildVobizXml(input: VobizXmlInput): string {
   }
 
   const audio = input.audioUrl ? `<Play>${escapeXml(input.audioUrl)}</Play>` : speak;
-  const prompt = input.prompt
-    ? `<Speak voice="WOMAN">${escapeXml(input.prompt)}</Speak>`
-    : "";
-  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${prompt}<Record action="${escapeXml(
+  const prompt = `<Speak voice="WOMAN">${escapeXml(input.prompt || input.text)}</Speak>`;
+  const digits = `<GetDigits action="${escapeXml(
     input.actionUrl
-  )}" method="POST" maxLength="12" timeout="3" playBeep="true" finishOnKey="#"/></Response>`;
+  )}" method="POST" timeout="8" numDigits="1" validDigits="0123456789#*">${prompt}</GetDigits>`;
+  const record = `<Record action="${escapeXml(
+    input.actionUrl
+  )}" method="POST" maxLength="12" timeout="3" playBeep="true" finishOnKey="#"/>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${digits}${record}</Response>`;
 }
 
 function xmlResponse(xml: string): NextResponse {
@@ -444,9 +446,45 @@ function xmlResponse(xml: string): NextResponse {
   });
 }
 
-function audioResponse(audioId: string): NextResponse | null {
+async function audioResponse(audioId: string): Promise<NextResponse | null> {
   const entry = audioCache.get(audioId);
   if (!entry) {
+    const bridgeBase = (
+      process.env.VPS_EDGE_TTS_URL ||
+      "https://father-connectors-insider-event.trycloudflare.com"
+    )
+      .trim()
+      .replace(/\/+$/, "");
+    const bridgeSecret = (process.env.TTS_BRIDGE_SECRET || "hmnt_tts_2026").trim();
+    if (bridgeBase) {
+      try {
+        const bridgeUrl = new URL(bridgeBase + "/tts");
+        bridgeUrl.searchParams.set("key", bridgeSecret);
+        bridgeUrl.searchParams.set("lang", "hi-IN");
+        bridgeUrl.searchParams.set(
+          "text",
+          "Namaste, main aapki sahayata ke liye bol rahi hoon. Kripya batayein main aapki kya madad kar sakti hoon?"
+        );
+        const upstream = await fetch(bridgeUrl.toString(), {
+          method: "GET",
+          signal: AbortSignal.timeout(12000),
+        });
+        if (upstream.ok) {
+          const buf = Buffer.from(await upstream.arrayBuffer());
+          if (buf.byteLength >= 1000) {
+            return new NextResponse(buf, {
+              status: 200,
+              headers: {
+                "Content-Type": "audio/mpeg",
+                "Cache-Control": "no-store",
+              },
+            });
+          }
+        }
+      } catch {
+        return null;
+      }
+    }
     return null;
   }
   if (entry.expiresAt <= Date.now()) {
@@ -565,7 +603,7 @@ export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const audioId = readText(url.searchParams.get("audio"), 80);
   if (audioId) {
-    return audioResponse(audioId) ?? new NextResponse("Audio not found", { status: 404 });
+    return (await audioResponse(audioId)) ?? new NextResponse("Audio not found", { status: 404 });
   }
   return handleAnswer(request, {}, url);
 }
@@ -575,7 +613,7 @@ export async function POST(request: Request): Promise<Response> {
   const payload = await readPayload(request);
   const audioId = readText(url.searchParams.get("audio"), 80);
   if (audioId) {
-    return audioResponse(audioId) ?? new NextResponse("Audio not found", { status: 404 });
+    return (await audioResponse(audioId)) ?? new NextResponse("Audio not found", { status: 404 });
   }
   return handleAnswer(request, payload, url);
 }
