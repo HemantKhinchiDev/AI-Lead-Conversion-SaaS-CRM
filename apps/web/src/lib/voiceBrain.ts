@@ -12,7 +12,7 @@ export const VOICE_PROFILES: Record<
   VoiceLanguage,
   { voice: string; label: string; greeting: string }
 > = {
-  "hi-IN": { voice: "hi-IN-SwaraNeural", label: "Hindi", greeting: "नमस्ते" },
+  "hi-IN": { voice: "hi-IN-MadhurNeural", label: "Hindi", greeting: "नमस्ते" },
   "gu-IN": { voice: "gu-IN-DhwaniNeural", label: "Gujarati", greeting: "નમસ્તે" },
   "en-IN": { voice: "en-IN-NeerjaNeural", label: "English (India)", greeting: "Hello" },
 };
@@ -281,7 +281,7 @@ export function buildFallbackReply(input: VoiceResponseInput): string {
   }
 
   if (intent === "greeting") {
-    return `${greeting}${leadName ? ` ${leadName}` : ""}, this is the AI assistant from ${name}. How can I help you today?`;
+    return `Namaste! Main Hemant bol raha hoon, ek software developer. Hum businesses ke liye modern website aur AI calling system banate hain jisse aapka business tezi se grow ho. Kya abhi 1 minute baat ho sakti hai?`;
   }
   if (intent === "pricing") {
     return "Pricing and availability change often, so our team will confirm the latest details with you. Would you like a callback?";

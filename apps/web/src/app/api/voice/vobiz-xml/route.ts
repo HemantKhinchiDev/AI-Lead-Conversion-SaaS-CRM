@@ -463,7 +463,7 @@ async function audioResponse(audioId: string): Promise<NextResponse | null> {
         bridgeUrl.searchParams.set("lang", "hi-IN");
         bridgeUrl.searchParams.set(
           "text",
-          "Namaste, main aapki sahayata ke liye bol rahi hoon. Kripya batayein main aapki kya madad kar sakti hoon?"
+          "Namaste! Main Hemant bol raha hoon, ek software developer. Hum businesses ke liye modern website aur AI calling system banate hain jisse aapka business tezi se grow ho. Kya abhi 1 minute baat ho sakti hai?"
         );
         const upstream = await fetch(bridgeUrl.toString(), {
           method: "GET",
