@@ -5,12 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { VOICE_PROFILES, type VoiceLanguage } from "./voiceBrain";
+import { resolveVoice, type VoiceGender, type VoiceLanguage } from "./voiceBrain";
 
 const execFileAsync = promisify(execFile);
 
 const MAX_TTS_CHARS = 600;
 const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_SPEECH_RATE = "+5%";
 const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 
 export type TtsResult = {
@@ -24,6 +25,8 @@ export type TtsResult = {
 type TtsDependencies = {
   command?: string;
   timeoutMs?: number;
+  gender?: VoiceGender;
+  rate?: string;
 };
 
 type CommandCandidate = {
@@ -42,9 +45,19 @@ function buildCandidates(
   command: string | undefined,
   voice: string,
   text: string,
-  file: string
+  file: string,
+  rate: string
 ): CommandCandidate[] {
-  const cliArgs = ["--voice", voice, "--text", text, "--write-media", file];
+  const cliArgs = [
+    "--voice",
+    voice,
+    "--text",
+    text,
+    "--rate",
+    rate,
+    "--write-media",
+    file,
+  ];
   const configured = (command ?? "").trim();
   if (configured) {
     return [{ bin: configured, args: cliArgs }];
@@ -57,21 +70,22 @@ function buildCandidates(
 
 async function synthesizeViaVpsBridge(
   text: string,
-  language: string
+  language: VoiceLanguage,
+  voice: string,
+  rate: string
 ): Promise<{ audioBase64: string; mimeType: "audio/mpeg" } | null> {
-  const baseUrl = (
-    process.env.VPS_EDGE_TTS_URL ||
-    "https://father-connectors-insider-event.trycloudflare.com"
-  )
-    .trim()
-    .replace(/\/+$/, "");
-  const secret = (process.env.TTS_BRIDGE_SECRET || "hmnt_tts_2026").trim();
+  const baseUrl = process.env.VPS_EDGE_TTS_URL?.trim().replace(/\/+$/, "") || "";
   if (!baseUrl) return null;
+  const secret = process.env.TTS_BRIDGE_SECRET?.trim() || "";
   try {
     const u = new URL(baseUrl + "/tts");
-    u.searchParams.set("key", secret);
-    u.searchParams.set("lang", language || "en-IN");
-    u.searchParams.set("text", text.slice(0, 600));
+    if (secret) {
+      u.searchParams.set("key", secret);
+    }
+    u.searchParams.set("lang", language);
+    u.searchParams.set("voice", voice);
+    u.searchParams.set("rate", rate);
+    u.searchParams.set("text", text.slice(0, MAX_TTS_CHARS));
     const res = await fetch(u.toString(), {
       method: "GET",
       signal: AbortSignal.timeout(12000),
@@ -93,23 +107,22 @@ export async function synthesizeSpeech(
   language: VoiceLanguage,
   deps: TtsDependencies = {}
 ): Promise<TtsResult> {
-  const bridged = await synthesizeViaVpsBridge(text, language);
-  if (bridged && bridged.audioBase64) {
-    const voice = language.toLowerCase().startsWith("hi")
-      ? "hi-IN-MadhurNeural"
-      : language.toLowerCase().startsWith("gu")
-      ? "gu-IN-NiranjanNeural"
-      : "en-IN-PrabhatNeural";
-    return {
-      audioBase64: bridged.audioBase64,
-      mimeType: "audio/mpeg",
-      voice,
-      provider: "edge-tts",
-    };
+  const voice = resolveVoice(language, deps.gender ?? "female");
+  const rate = (deps.rate ?? DEFAULT_SPEECH_RATE).trim() || DEFAULT_SPEECH_RATE;
+  const clean = text.replace(/\s+/g, " ").trim().slice(0, MAX_TTS_CHARS);
+
+  if (clean) {
+    const bridged = await synthesizeViaVpsBridge(clean, language, voice, rate);
+    if (bridged && bridged.audioBase64) {
+      return {
+        audioBase64: bridged.audioBase64,
+        mimeType: "audio/mpeg",
+        voice,
+        provider: "edge-tts",
+      };
+    }
   }
 
-  const voice = VOICE_PROFILES[language].voice;
-  const clean = text.replace(/\s+/g, " ").trim().slice(0, MAX_TTS_CHARS);
   if (!clean) {
     return {
       audioBase64: null,
@@ -122,7 +135,13 @@ export async function synthesizeSpeech(
 
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const file = join(tmpdir(), `edge-tts-${randomUUID()}.mp3`);
-  const candidates = buildCandidates(deps.command ?? process.env.EDGE_TTS_BIN, voice, clean, file);
+  const candidates = buildCandidates(
+    deps.command ?? process.env.EDGE_TTS_BIN,
+    voice,
+    clean,
+    file,
+    rate
+  );
 
   try {
     for (const candidate of candidates) {

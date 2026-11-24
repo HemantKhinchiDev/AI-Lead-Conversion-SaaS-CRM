@@ -108,7 +108,8 @@ test("vobiz outbound trigger logs provider call ids and preserves simulated fall
   const route = source(TRIGGER_ROUTE);
   assert.match(route, /getVobizConfig\(\)/);
   assert.match(route, /normalizeVobizNumber\(lead\.phone\)/);
-  assert.match(route, /resolveVobizAnswerUrl\(req\)/);
+  assert.match(route, /withVoiceSettings\(/);
+  assert.match(route, /resolveVobizAnswerUrl\(req, voiceSettings\)/);
   assert.match(route, /\/api\/voice\/vobiz-xml/);
   assert.match(route, /placeVobizCall\(/);
   assert.match(route, /provider: "vobiz"/);
@@ -127,12 +128,13 @@ test("vobiz outbound trigger logs provider call ids and preserves simulated fall
 test("vobiz xml endpoint returns escaped, bounded VobizXML with TTS and input collection", () => {
   const route = source(XML_ROUTE);
   assert.match(route, /function buildVobizXml/);
-  assert.match(route, /<Speak voice="MAN">/);
+  assert.match(route, /resolveSpeakVoice\(/);
+  assert.match(route, /<Speak voice="\$\{speakVoice\}">/);
   assert.match(route, /<GetDigits action=/);
   assert.match(route, /<\/GetDigits>/);
-  assert.match(route, /method="POST" timeout="8" numDigits="1" validDigits="0123456789#\*"/);
+  assert.match(route, /method="POST" timeout="2" retries="1" numDigits="1" validDigits="0123456789#\*"/);
   assert.match(route, /<Record action=/);
-  assert.match(route, /maxLength="12" timeout="3" playBeep="true"/);
+  assert.match(route, /maxLength="12" timeout="8" retries="2" playBeep="true"/);
   assert.match(route, /finishOnKey="#"/);
   assert.match(route, /<Hangup\/>/);
   assert.match(route, /function escapeXml/);
@@ -146,7 +148,7 @@ test("vobiz xml endpoint returns escaped, bounded VobizXML with TTS and input co
   assert.doesNotMatch(route, /speechTimeout/i);
 });
 
-test("vobiz xml endpoint emits only WOMAN voice and matching GetDigits tags", async () => {
+test("vobiz xml endpoint emits gendered Speak voice and matching GetDigits tags", async () => {
   const { buildVobizXml } = await loadVobiz();
   const xml = buildVobizXml({
     text: "Namaste <lead> & \"friends\"",
@@ -167,7 +169,7 @@ test("vobiz xml endpoint emits only WOMAN voice and matching GetDigits tags", as
   assert.ok(xml.includes('action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2"'));
   assert.ok(
     xml.includes(
-      '<GetDigits action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2" method="POST" timeout="8" numDigits="1" validDigits="0123456789#*"><Speak voice="WOMAN">Press 1 or 9</Speak></GetDigits>'
+      '<GetDigits action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2" method="POST" timeout="2" retries="1" numDigits="1" validDigits="0123456789#*"><Speak voice="WOMAN">Press 1 or 9</Speak></GetDigits>'
     )
   );
   assert.ok(xml.includes("<Play>https://example.test/audio/greeting.mp3</Play>"));
@@ -183,14 +185,24 @@ test("vobiz xml endpoint emits only WOMAN voice and matching GetDigits tags", as
     '<?xml version="1.0" encoding="UTF-8"?><Response><Speak voice="WOMAN">Goodbye</Speak><Hangup/></Response>'
   );
   assert.doesNotMatch(ending, /<GetDigits|<GetInput|Neural/);
+
+  const male = buildVobizXml({
+    text: "Hello",
+    gender: "male",
+    prompt: "Speak now",
+    actionUrl: VOBIZ_TEST_ANSWER_URL,
+  });
+  assert.equal((male.match(/<Speak voice="MAN">/g) ?? []).length, 2);
+  assert.doesNotMatch(male, /<Speak voice="WOMAN">/);
 });
 
 test("vobiz xml endpoint grounds responses in tenant knowledge and caches edge-tts audio locally", () => {
   const route = source(XML_ROUTE);
   assert.match(route, /generateVoiceResponse\(/);
-  assert.match(route, /synthesizeSpeech\(reply, language\)/);
+  assert.match(route, /synthesizeSpeech\(reply, language, \{ gender: voiceGender \}\)/);
   assert.match(route, /normalizeVoiceLanguage\(/);
-  assert.match(route, /VOICE_PROFILES\[language\]\.voice/);
+  assert.match(route, /resolveVoice\(language, voiceGender\)/);
+  assert.match(route, /VOICE_PROFILES\[language\]\.prompt/);
   assert.match(route, /buildFallbackReply\(/);
   assert.match(route, /from\("knowledge_bases"\)/);
   assert.match(route, /\.eq\("tenant_id", tenantId\)/);
@@ -199,6 +211,11 @@ test("vobiz xml endpoint grounds responses in tenant knowledge and caches edge-t
   assert.match(route, /\.eq\("id", context\.callId\)/);
   assert.match(route, /\.eq\("tenant_id", context\.tenantId\)/);
   assert.match(route, /escapeIlike/);
+  assert.match(route, /normalizeOpeningScript\(/);
+  assert.match(route, /detectVoiceLanguage\(speech, startingLanguage, true\)/);
+  assert.match(route, /params\.set\("starting_language", language\)/);
+  assert.match(route, /params\.set\("voice_gender", voiceGender\)/);
+  assert.match(route, /params\.set\("auto_language_switch", autoLanguageSwitch \? "true" : "false"\)/);
   assert.match(route, /cacheAudio\(/);
   assert.match(route, /audio\/mpeg/);
   assert.match(route, /export async function GET/);
@@ -239,6 +256,38 @@ test("vobiz bridge files contain no hardcoded provider secrets", () => {
   assert.doesNotMatch(combined, /MA[0-9a-f]{20,}/);
   assert.doesNotMatch(combined, /SUPABASE_SERVICE_ROLE_KEY\s*[:=]\s*["'][^"']+/);
   assert.doesNotMatch(combined, /NEXT_PUBLIC_VOBIZ_(AUTH_ID|AUTH_TOKEN)/);
+  assert.doesNotMatch(combined, /trycloudflare\.com|hmnt_tts_2026/);
+});
+
+test("T016 bridges use instant script, natural neural voices and Turn 2+ auto language switch", () => {
+  const route = source(XML_ROUTE);
+  const brain = source("src/lib/voiceBrain.ts");
+  const tts = source("src/lib/edgeTts.ts");
+  const trigger = source(TRIGGER_ROUTE);
+
+  assert.match(route, /customOpeningScript \|\|/);
+  assert.match(route, /turn >= 2 && autoLanguageSwitch && speech/);
+  assert.match(route, /detectVoiceLanguage\(speech, startingLanguage, true\)/);
+  assert.match(route, /resolveVoice\(language, voiceGender\)/);
+  assert.match(route, /synthesizeSpeech\(reply, language, \{ gender: voiceGender \}\)/);
+  assert.match(route, /const autoLanguageSwitch = autoSwitchParam/);
+  assert.match(route, /params\.set\("opening_script", customOpeningScript\)/);
+
+  assert.match(brain, /"hi-IN-SwaraNeural"/);
+  assert.match(brain, /"en-IN-PrabhatNeural"/);
+  assert.match(brain, /"gu-IN-NiranjanNeural"/);
+  assert.match(brain, /GROQ_FAST_MODEL = "llama-3\.1-8b-instant"/);
+  assert.match(brain, /GROQ_TIMEOUT_MS = 1800/);
+
+  assert.match(tts, /resolveVoice\(language, deps\.gender \?\? "female"\)/);
+  assert.match(tts, /u\.searchParams\.set\("voice", voice\)/);
+  assert.match(tts, /DEFAULT_SPEECH_RATE = "\+5%"/);
+
+  assert.match(trigger, /function withVoiceSettings\(answerUrl: string, settings: VoiceSettings\)/);
+  assert.match(trigger, /withVoiceSettings\(configured, settings\)/);
+  assert.match(trigger, /url\.searchParams\.set\("starting_language", settings\.starting_language\)/);
+  assert.match(trigger, /url\.searchParams\.set\("voice_gender", settings\.voice_gender\)/);
+  assert.match(trigger, /url\.searchParams\.set\("auto_language_switch", settings\.auto_language_switch \? "true" : "false"\)/);
 });
 
 test("vobiz config parsing rejects placeholders and normalizes destinations", async () => {
@@ -437,12 +486,21 @@ test("buildVobizXml escapes input, plays cached TTS audio and bounds the convers
   assert.ok(prompt.includes('<Play>https://example.test/audio/greeting.mp3</Play>'));
   assert.ok(
     prompt.includes(
-      '<GetDigits action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2" method="POST" timeout="8" numDigits="1" validDigits="0123456789#*"><Speak voice="WOMAN">Press 1 or say yes</Speak></GetDigits>'
+      '<GetDigits action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2" method="POST" timeout="2" retries="1" numDigits="1" validDigits="0123456789#*"><Speak voice="WOMAN">Press 1 or say yes</Speak></GetDigits>'
     )
   );
-  assert.ok(prompt.includes('<Record action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2" method="POST" maxLength="12" timeout="3" playBeep="true" finishOnKey="#"/>'));
+  assert.ok(prompt.includes('<Record action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2" method="POST" maxLength="12" timeout="8" retries="2" playBeep="true" finishOnKey="#"/>'));
   assert.ok(!prompt.includes("<private>"));
   assert.ok(!prompt.includes("<GetInput"));
+
+  const male = buildVobizXml({
+    text: "Hello",
+    gender: "male",
+    prompt: "Speak now",
+    actionUrl: VOBIZ_TEST_ANSWER_URL,
+  });
+  assert.ok(male.includes('<Speak voice="MAN">Hello</Speak>'));
+  assert.ok(!male.includes('<Speak voice="WOMAN">'));
 
   const ending = buildVobizXml({
     text: 'Goodbye <lead> & "friends"',

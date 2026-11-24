@@ -10,25 +10,40 @@ import {
   normalizeOpeningScript,
   normalizeStartingLanguage,
   normalizeVoiceGender,
+  type VoiceSettings,
 } from "../../../../lib/voiceSettings";
 
 export const runtime = "nodejs";
 
-function resolveVobizAnswerUrl(req: Request): string {
+function withVoiceSettings(answerUrl: string, settings: VoiceSettings): string {
+  if (!isPublicHttpUrl(answerUrl)) {
+    return answerUrl;
+  }
+  const url = new URL(answerUrl);
+  url.searchParams.set("starting_language", settings.starting_language);
+  url.searchParams.set("voice_gender", settings.voice_gender);
+  url.searchParams.set("auto_language_switch", settings.auto_language_switch ? "true" : "false");
+  if (settings.opening_script) {
+    url.searchParams.set("opening_script", settings.opening_script);
+  }
+  return url.toString();
+}
+
+function resolveVobizAnswerUrl(req: Request, settings: VoiceSettings): string {
   const configured = process.env.VOBIZ_ANSWER_URL?.trim() ?? "";
   if (isPublicHttpUrl(configured)) {
-    return configured;
+    return withVoiceSettings(configured, settings);
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ?? "";
   if (isPublicHttpUrl(baseUrl)) {
-    return `${baseUrl.replace(/\/+$/, "")}/api/voice/vobiz-xml`;
+    return withVoiceSettings(`${baseUrl.replace(/\/+$/, "")}/api/voice/vobiz-xml`, settings);
   }
 
   try {
     const origin = new URL(req.url).origin;
     if (isPublicHttpUrl(origin)) {
-      return `${origin.replace(/\/+$/, "")}/api/voice/vobiz-xml`;
+      return withVoiceSettings(`${origin.replace(/\/+$/, "")}/api/voice/vobiz-xml`, settings);
     }
   } catch {
     return "";
@@ -121,7 +136,7 @@ export async function POST(req: Request) {
 
     const vobizConfig = getVobizConfig();
     const vobizDestination = normalizeVobizNumber(lead.phone);
-    const vobizAnswerUrl = resolveVobizAnswerUrl(req);
+    const vobizAnswerUrl = resolveVobizAnswerUrl(req, voiceSettings);
 
     if (vobizConfig && vobizDestination && vobizAnswerUrl) {
       const dispatch = await placeVobizCall(

@@ -1,14 +1,41 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import ts from "typescript";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webRoot = join(here, "..");
 
 function read(relativePath) {
   return readFileSync(join(webRoot, relativePath), "utf8");
+}
+
+let voiceBrainPromise;
+function loadVoiceBrain() {
+  if (!voiceBrainPromise) {
+    voiceBrainPromise = (async () => {
+      const dir = mkdtempSync(join(tmpdir(), "voice-brain-"));
+      for (const [sourcePath, outputName] of [
+        ["src/lib/knowledgeBase.ts", "knowledgeBase.mjs"],
+        ["src/lib/voiceBrain.ts", "voiceBrain.mjs"],
+      ]) {
+        let js = ts.transpileModule(read(sourcePath), {
+          compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+        }).outputText;
+        js = js.replace('from "./knowledgeBase"', 'from "./knowledgeBase.mjs"');
+        writeFileSync(join(dir, outputName), js, "utf8");
+      }
+      try {
+        return await import(pathToFileURL(join(dir, "voiceBrain.mjs")).href);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    })();
+  }
+  return voiceBrainPromise;
 }
 
 test("voice respond route enforces session auth and tenant-scoped knowledge lookup", () => {
@@ -38,14 +65,73 @@ test("voice brain supports three Indian languages with local edge-tts voices", (
   for (const value of ["hi-IN", "gu-IN", "en-IN"]) {
     assert.ok(lib.includes(`"${value}"`), `missing language: ${value}`);
   }
-  for (const voice of ["hi-IN-MadhurNeural", "gu-IN-DhwaniNeural", "en-IN-NeerjaNeural"]) {
+  for (const voice of [
+    "hi-IN-SwaraNeural",
+    "hi-IN-MadhurNeural",
+    "gu-IN-DhwaniNeural",
+    "gu-IN-NiranjanNeural",
+    "en-IN-NeerjaNeural",
+    "en-IN-PrabhatNeural",
+  ]) {
     assert.ok(lib.includes(voice), `missing voice: ${voice}`);
   }
+  assert.match(lib, /llama-3\.1-8b-instant/);
   assert.match(lib, /llama-3\.3-70b-versatile/);
+  assert.match(lib, /GROQ_TIMEOUT_MS = 1800/);
+  assert.match(lib, /resolveGroqModel\(\)/);
   assert.match(lib, /Use ONLY the supplied business knowledge base/);
   assert.match(lib, /Never invent prices, availability, appointments, guarantees, or contact details/);
   assert.match(lib, /buildFallbackReply/);
   assert.match(lib, /speak|speech|conversational sentences/);
+});
+
+test("voice brain maps gendered neural voices and detects caller language on later turns", async () => {
+  const lib = await loadVoiceBrain();
+
+  assert.equal(lib.resolveVoice("hi-IN", "female"), "hi-IN-SwaraNeural");
+  assert.equal(lib.resolveVoice("hi-IN", "male"), "hi-IN-MadhurNeural");
+  assert.equal(lib.resolveVoice("en-IN", "female"), "en-IN-NeerjaNeural");
+  assert.equal(lib.resolveVoice("en-IN", "male"), "en-IN-PrabhatNeural");
+  assert.equal(lib.resolveVoice("gu-IN", "female"), "gu-IN-DhwaniNeural");
+  assert.equal(lib.resolveVoice("gu-IN", "male"), "gu-IN-NiranjanNeural");
+
+  assert.equal(lib.detectVoiceLanguage("मुझे कीमत चाहिए", "en-IN", true), "hi-IN");
+  assert.equal(lib.detectVoiceLanguage("કિંમત કેટલી છે?", "en-IN", true), "gu-IN");
+  assert.equal(lib.detectVoiceLanguage("kem cho, tamane jovu chhe", "en-IN", true), "gu-IN");
+  assert.equal(lib.detectVoiceLanguage("aapka price kya hai?", "en-IN", true), "hi-IN");
+  assert.equal(lib.detectVoiceLanguage("What is the price?", "hi-IN", true), "hi-IN");
+  assert.equal(lib.detectVoiceLanguage("नमस्ते", "hi-IN", false), "hi-IN");
+});
+
+test("voice brain keeps Groq turn responses under two seconds with the fast model", async () => {
+  const lib = await loadVoiceBrain();
+  let capturedBody;
+  const previousModel = process.env.GROQ_VOICE_MODEL;
+  delete process.env.GROQ_VOICE_MODEL;
+  try {
+    const result = await lib.generateVoiceResponse(
+      { message: "hello", language: "en-IN", knowledgeBase: null },
+      {
+        groqKey: "test-key",
+        fetchImpl: async (_url, init) => {
+          capturedBody = JSON.parse(init.body);
+          return {
+            ok: true,
+            json: async () => ({ choices: [{ message: { content: "Namaste, how can I help?" } }] }),
+          };
+        },
+      }
+    );
+    assert.equal(result.provider, "groq");
+    assert.equal(capturedBody.model, "llama-3.1-8b-instant");
+    assert.ok(capturedBody.max_tokens <= 160);
+  } finally {
+    if (previousModel === undefined) {
+      delete process.env.GROQ_VOICE_MODEL;
+    } else {
+      process.env.GROQ_VOICE_MODEL = previousModel;
+    }
+  }
 });
 
 test("edge-tts wiring uses local CLI with python module fallback and no paid speech API", () => {
@@ -53,9 +139,12 @@ test("edge-tts wiring uses local CLI with python module fallback and no paid spe
   assert.match(lib, /edge-tts/);
   assert.match(lib, /"-m", "edge_tts"/);
   assert.match(lib, /--write-media/);
+  assert.match(lib, /--rate/);
+  assert.match(lib, /resolveVoice\(language, deps\.gender \?\? "female"\)/);
   assert.match(lib, /mimeType: "audio\/mpeg"/);
   assert.match(lib, /provider: "unavailable"/);
   assert.doesNotMatch(lib, /api\.openai\.com|elevenlabs|api\.groq\.com/);
+  assert.doesNotMatch(lib, /trycloudflare\.com|hmnt_tts_2026/);
 });
 
 test("plivo bridge reads credentials from env and falls back to the sandbox simulator", () => {

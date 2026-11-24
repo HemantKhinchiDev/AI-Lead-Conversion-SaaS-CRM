@@ -5,20 +5,88 @@ import {
 } from "./knowledgeBase";
 
 export type VoiceLanguage = KnowledgeLanguage;
+export type VoiceGender = "female" | "male";
 
 export const VOICE_LANGUAGES = KNOWLEDGE_LANGUAGES;
 
 export const VOICE_PROFILES: Record<
   VoiceLanguage,
-  { voice: string; label: string; greeting: string }
+  {
+    voice: string;
+    femaleVoice: string;
+    maleVoice: string;
+    label: string;
+    greeting: string;
+    prompt: string;
+  }
 > = {
-  "hi-IN": { voice: "hi-IN-MadhurNeural", label: "Hindi", greeting: "नमस्ते" },
-  "gu-IN": { voice: "gu-IN-DhwaniNeural", label: "Gujarati", greeting: "નમસ્તે" },
-  "en-IN": { voice: "en-IN-NeerjaNeural", label: "English (India)", greeting: "Hello" },
+  "hi-IN": {
+    voice: "hi-IN-SwaraNeural",
+    femaleVoice: "hi-IN-SwaraNeural",
+    maleVoice: "hi-IN-MadhurNeural",
+    label: "Hindi",
+    greeting: "नमस्ते",
+    prompt: "कृपया अब बोलें, या कॉल समाप्त करने के लिए 9 दबाएँ।",
+  },
+  "gu-IN": {
+    voice: "gu-IN-DhwaniNeural",
+    femaleVoice: "gu-IN-DhwaniNeural",
+    maleVoice: "gu-IN-NiranjanNeural",
+    label: "Gujarati",
+    greeting: "નમસ્તે",
+    prompt: "કૃપા કરીને હવે બોલો, અથવા કૉલ સમાપ્ત કરવા 9 દબાવો.",
+  },
+  "en-IN": {
+    voice: "en-IN-NeerjaNeural",
+    femaleVoice: "en-IN-NeerjaNeural",
+    maleVoice: "en-IN-PrabhatNeural",
+    label: "English (India)",
+    greeting: "Hello",
+    prompt: "Please speak now, or press 9 to end the call.",
+  },
 };
 
 export function normalizeVoiceLanguage(value: unknown): VoiceLanguage {
   return normalizeLanguage(value);
+}
+
+export function normalizeVoiceGender(value: unknown): VoiceGender {
+  return value === "male" ? "male" : "female";
+}
+
+export function resolveVoice(language: VoiceLanguage, gender: unknown = "female"): string {
+  const profile = VOICE_PROFILES[language];
+  return normalizeVoiceGender(gender) === "male" ? profile.maleVoice : profile.femaleVoice;
+}
+
+export function detectVoiceLanguage(
+  message: unknown,
+  fallback: VoiceLanguage,
+  enabled = true
+): VoiceLanguage {
+  const text = asText(message, MAX_MESSAGE_CHARS).toLowerCase();
+  if (!enabled || !text) {
+    return fallback;
+  }
+  if (GUJARATI_SCRIPT.test(text)) {
+    return "gu-IN";
+  }
+  if (DEVANAGARI_SCRIPT.test(text)) {
+    return "hi-IN";
+  }
+
+  const hindiScore = countPatternMatches(text, LATIN_HINDI_SIGNALS);
+  const gujaratiScore = countPatternMatches(text, LATIN_GUJARATI_SIGNALS);
+  if (hindiScore === 0 && gujaratiScore === 0) {
+    return fallback;
+  }
+  if (hindiScore > gujaratiScore) {
+    return "hi-IN";
+  }
+  if (gujaratiScore > hindiScore) {
+    return "gu-IN";
+  }
+  return fallback;
 }
 
 export type VoiceKnowledgeBase = {
@@ -61,11 +129,18 @@ type VoiceDependencies = {
 type VoiceIntent = "greeting" | "pricing" | "location" | "services" | "callback" | "general";
 
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "llama-3.3-70b-versatile";
-const GROQ_TIMEOUT_MS = 12000;
-const MAX_REPLY_CHARS = 500;
+const GROQ_FAST_MODEL = "llama-3.1-8b-instant";
+const GROQ_PREMIUM_MODEL = "llama-3.3-70b-versatile";
+const GROQ_TIMEOUT_MS = 1800;
+const GROQ_MAX_TOKENS = 160;
+const MAX_REPLY_CHARS = 380;
 const MAX_MESSAGE_CHARS = 1000;
 const MAX_HISTORY_TURNS = 6;
+
+function resolveGroqModel(): string {
+  const configured = (process.env.GROQ_VOICE_MODEL ?? "").trim();
+  return configured === GROQ_PREMIUM_MODEL ? GROQ_PREMIUM_MODEL : GROQ_FAST_MODEL;
+}
 
 const PRICING_SIGNALS = [
   "price",
@@ -131,6 +206,53 @@ const GREETING_SIGNALS = [
   "नमस्ते",
   "નમસ્તે",
 ];
+
+const DEVANAGARI_SCRIPT = /[\u0900-\u097F]/;
+const GUJARATI_SCRIPT = /[\u0A80-\u0AFF]/;
+
+const LATIN_HINDI_SIGNALS = [
+  /\bnamaste\b/g,
+  /\bnamaskar\b/g,
+  /\baap\b/g,
+  /\bapka\b/g,
+  /\baapka\b/g,
+  /\bkya\b/g,
+  /\bkitna\b/g,
+  /\bkitne\b/g,
+  /\bkahan\b/g,
+  /\bkaise\b/g,
+  /\bbataiye\b/g,
+  /\bbatao\b/g,
+  /\bchahiye\b/g,
+  /\bchahte\b/g,
+  /\bshukriya\b/g,
+  /\bdhanyavaad\b/g,
+  /\btheek\b/g,
+  /\bjana\b/g,
+  /\bjaana\b/g,
+];
+
+const LATIN_GUJARATI_SIGNALS = [
+  /\bkem\s+cho\b/g,
+  /\bkem\b/g,
+  /\btame\b/g,
+  /\btamne\b/g,
+  /\bshun\b/g,
+  /\bchhe\b/g,
+  /\baavjo\b/g,
+  /\bdhanhvaad\b/g,
+  /\bbahu\b/g,
+  /\bkaru\b/g,
+  /\bkarish\b/g,
+];
+
+function countPatternMatches(text: string, patterns: RegExp[]): number {
+  let total = 0;
+  for (const pattern of patterns) {
+    total += (text.match(pattern) ?? []).length;
+  }
+  return total;
+}
 
 function asText(value: unknown, maxLength = 600): string {
   if (typeof value !== "string") {
@@ -361,7 +483,7 @@ async function callGroq(
     "Use ONLY the supplied business knowledge base.",
     "Never invent prices, availability, appointments, guarantees, or contact details.",
     "If a fact is missing, say the team will confirm the details instead of guessing.",
-    "Reply with 1-2 short conversational sentences suitable for speech.",
+    "Reply with 1-2 very short conversational sentences suitable for speech, under 45 words.",
     "Do not use markdown, emojis, bullet points, or stage directions.",
   ].join(" ");
 
@@ -389,9 +511,9 @@ async function callGroq(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: GROQ_MODEL,
+        model: resolveGroqModel(),
         temperature: 0.3,
-        max_tokens: 220,
+        max_tokens: GROQ_MAX_TOKENS,
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },

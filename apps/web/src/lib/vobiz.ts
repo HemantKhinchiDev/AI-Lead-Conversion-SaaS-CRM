@@ -138,6 +138,8 @@ type VobizDispatchDependencies = {
 export type VobizXmlInput = {
   text: string;
   voice?: string;
+  gender?: "female" | "male";
+  speakVoice?: "WOMAN" | "MAN";
   prompt?: string;
   actionUrl?: string;
   audioUrl?: string;
@@ -273,24 +275,32 @@ export function escapeVobizXml(value: string): string {
 
 export const VOBIZ_SPEAK_VOICE = "WOMAN";
 
-export function vobizSpeak(text: string): string {
-  return `<Speak voice="${VOBIZ_SPEAK_VOICE}">${escapeVobizXml(text)}</Speak>`;
+export function resolveVobizSpeakVoice(gender?: "female" | "male"): "WOMAN" | "MAN" {
+  return gender === "male" ? "MAN" : "WOMAN";
+}
+
+export function vobizSpeak(text: string, speakVoice?: "WOMAN" | "MAN"): string {
+  return `<Speak voice="${speakVoice ?? VOBIZ_SPEAK_VOICE}">${escapeVobizXml(text)}</Speak>`;
 }
 
 export function buildVobizXml(input: VobizXmlInput): string {
-  const speak = vobizSpeak(input.text);
+  const speakVoice = input.speakVoice ?? resolveVobizSpeakVoice(input.gender);
+  const speak = vobizSpeak(input.text, speakVoice);
   if (input.end || !input.actionUrl) {
     return `<?xml version="1.0" encoding="UTF-8"?><Response>${speak}<Hangup/></Response>`;
   }
 
   const audio = input.audioUrl ? `<Play>${escapeVobizXml(input.audioUrl)}</Play>` : speak;
-  const prompt = vobizSpeak(input.prompt || "Please tell me how I can help you.");
+  const prompt = vobizSpeak(
+    input.prompt || "Please speak now, or press 9 to end the call.",
+    speakVoice
+  );
   const digits = `<GetDigits action="${escapeVobizXml(
     input.actionUrl
-  )}" method="POST" timeout="8" numDigits="1" validDigits="0123456789#*">${prompt}</GetDigits>`;
+  )}" method="POST" timeout="2" retries="1" numDigits="1" validDigits="0123456789#*">${prompt}</GetDigits>`;
   const record = `<Record action="${escapeVobizXml(
     input.actionUrl
-  )}" method="POST" maxLength="12" timeout="3" playBeep="true" finishOnKey="#"/>`;
+  )}" method="POST" maxLength="12" timeout="8" retries="2" playBeep="true" finishOnKey="#"/>`;
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${digits}${record}</Response>`;
 }
 

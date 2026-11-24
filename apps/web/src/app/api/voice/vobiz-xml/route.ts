@@ -5,13 +5,23 @@ import { createClient } from "@supabase/supabase-js";
 import { synthesizeSpeech } from "../../../../lib/edgeTts";
 import {
   buildFallbackReply,
+  detectVoiceLanguage,
   generateVoiceResponse,
   normalizeVoiceLanguage,
+  resolveVoice,
   sanitizeVoiceHistory,
   VOICE_PROFILES,
+  type VoiceGender,
   type VoiceKnowledgeBase,
+  type VoiceLanguage,
   type VoiceTurn,
 } from "../../../../lib/voiceBrain";
+import {
+  normalizeAutoLanguageSwitch,
+  normalizeOpeningScript,
+  normalizeVoiceGender,
+  normalizeStartingLanguage,
+} from "../../../../lib/voiceSettings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +45,8 @@ type CallContext = {
 type VobizXmlInput = {
   text: string;
   voice: string;
+  gender?: VoiceGender;
+  speakVoice?: "WOMAN" | "MAN";
   prompt?: string;
   actionUrl?: string;
   audioUrl?: string;
@@ -120,11 +132,11 @@ function getParam(url: URL, payload: Dict, ...names: string[]): string {
   for (const name of names) {
     const fromQuery = url.searchParams.get(name)?.trim();
     if (fromQuery) {
-      return fromQuery.slice(0, 200);
+      return fromQuery.slice(0, 600);
     }
   }
   for (const name of names) {
-    const fromPayload = readText(payload[name], 200);
+    const fromPayload = readText(payload[name], 600);
     if (fromPayload) {
       return fromPayload;
     }
@@ -195,7 +207,11 @@ async function resolveLatestVobizRecordingUrl(callUuid: string): Promise<string>
   return "";
 }
 
-async function transcribeRecordingUrl(recordUrl: string, language: string): Promise<string> {
+async function transcribeRecordingUrl(
+  recordUrl: string,
+  language: string,
+  autoDetectLanguage = false
+): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY?.trim();
   if (!apiKey || !recordUrl) {
     return "";
@@ -225,10 +241,12 @@ async function transcribeRecordingUrl(recordUrl: string, language: string): Prom
     const form = new FormData();
     form.append("file", new Blob([arrayBuffer], { type: contentType }), `caller.${ext}`);
     form.append("model", "whisper-large-v3-turbo");
-    if (language === "hi-IN") {
-      form.append("language", "hi");
-    } else if (language === "gu-IN") {
-      form.append("language", "gu");
+    if (!autoDetectLanguage) {
+      if (language === "hi-IN") {
+        form.append("language", "hi");
+      } else if (language === "gu-IN") {
+        form.append("language", "gu");
+      }
     }
     form.append("response_format", "json");
 
@@ -419,20 +437,27 @@ async function resolveCallContext(url: URL, payload: Dict): Promise<CallContext 
   };
 }
 
+function resolveSpeakVoice(gender: VoiceGender = "female"): "WOMAN" | "MAN" {
+  return gender === "male" ? "MAN" : "WOMAN";
+}
+
 function buildVobizXml(input: VobizXmlInput): string {
-  const speak = `<Speak voice="MAN">${escapeXml(input.text)}</Speak>`;
+  const speakVoice = input.speakVoice ?? resolveSpeakVoice(input.gender);
+  const speak = `<Speak voice="${speakVoice}">${escapeXml(input.text)}</Speak>`;
   if (input.end || !input.actionUrl) {
     return `<?xml version="1.0" encoding="UTF-8"?><Response>${speak}<Hangup/></Response>`;
   }
 
   const audio = input.audioUrl ? `<Play>${escapeXml(input.audioUrl)}</Play>` : speak;
-  const prompt = `<Speak voice="MAN">${escapeXml(input.prompt || input.text)}</Speak>`;
+  const prompt = `<Speak voice="${speakVoice}">${escapeXml(
+    input.prompt || VOICE_PROFILES["en-IN"].prompt
+  )}</Speak>`;
   const digits = `<GetDigits action="${escapeXml(
     input.actionUrl
-  )}" method="POST" timeout="8" numDigits="1" validDigits="0123456789#*">${prompt}</GetDigits>`;
+  )}" method="POST" timeout="2" retries="1" numDigits="1" validDigits="0123456789#*">${prompt}</GetDigits>`;
   const record = `<Record action="${escapeXml(
     input.actionUrl
-  )}" method="POST" maxLength="12" timeout="3" playBeep="true" finishOnKey="#"/>`;
+  )}" method="POST" maxLength="12" timeout="8" retries="2" playBeep="true" finishOnKey="#"/>`;
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${digits}${record}</Response>`;
 }
 
@@ -449,42 +474,6 @@ function xmlResponse(xml: string): NextResponse {
 async function audioResponse(audioId: string): Promise<NextResponse | null> {
   const entry = audioCache.get(audioId);
   if (!entry) {
-    const bridgeBase = (
-      process.env.VPS_EDGE_TTS_URL ||
-      "https://father-connectors-insider-event.trycloudflare.com"
-    )
-      .trim()
-      .replace(/\/+$/, "");
-    const bridgeSecret = (process.env.TTS_BRIDGE_SECRET || "hmnt_tts_2026").trim();
-    if (bridgeBase) {
-      try {
-        const bridgeUrl = new URL(bridgeBase + "/tts");
-        bridgeUrl.searchParams.set("key", bridgeSecret);
-        bridgeUrl.searchParams.set("lang", "hi-IN");
-        bridgeUrl.searchParams.set(
-          "text",
-          "Namaste! Main Hemant bol raha hoon, ek software developer. Hum businesses ke liye modern website aur AI calling system banate hain jisse aapka business tezi se grow ho. Kya abhi 1 minute baat ho sakti hai?"
-        );
-        const upstream = await fetch(bridgeUrl.toString(), {
-          method: "GET",
-          signal: AbortSignal.timeout(12000),
-        });
-        if (upstream.ok) {
-          const buf = Buffer.from(await upstream.arrayBuffer());
-          if (buf.byteLength >= 1000) {
-            return new NextResponse(buf, {
-              status: 200,
-              headers: {
-                "Content-Type": "audio/mpeg",
-                "Cache-Control": "no-store",
-              },
-            });
-          }
-        }
-      } catch {
-        return null;
-      }
-    }
     return null;
   }
   if (entry.expiresAt <= Date.now()) {
@@ -513,26 +502,87 @@ function cacheAudio(audioBase64: string, baseUrl: string): string {
   return `${baseUrl}/api/voice/vobiz-xml?audio=${encodeURIComponent(audioId)}`;
 }
 
+function closingReply(language: VoiceLanguage, customScript?: string): string {
+  const custom = readText(customScript, 500);
+  if (custom) {
+    return custom;
+  }
+  if (language === "hi-IN") {
+    return "धन्यवाद। हमारी टीम आपको जल्द कॉल करेगी। अलविदा।";
+  }
+  if (language === "gu-IN") {
+    return "આભાર. અમारी ટીમ તમને જલ્દી કૉલ કરશે. આવજો.";
+  }
+  return "Thank you for your time. Our team will call you back shortly. Goodbye.";
+}
+
+function retryReply(language: VoiceLanguage): string {
+  if (language === "hi-IN") {
+    return "माफ़ कीजिए, मैं आपकी बात नहीं समझ पाया। कृपया दोबारा बोलें या समाप्त करने के लिए 9 दबाएँ।";
+  }
+  if (language === "gu-IN") {
+    return "માફ કરશો, હું તમને સમજી શક્યો નહીં. કૃપા કરીને ફરીથી બોલો અથવા સમાપ્ત કરવા 9 દબાવો.";
+  }
+  return "Sorry, I didn't catch that. Please speak again, or press 9 to end the call.";
+}
+
+function shouldEndBySpeech(speech: string, turn: number): boolean {
+  if (turn < 2) {
+    return false;
+  }
+  const normalized = speech.trim().replace(/[.!]+$/, "").toLowerCase();
+  return ["9", "nine", "bye", "goodbye", "stop", "band", "bandh"].includes(normalized);
+}
+
 async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<Response> {
   const context = await resolveCallContext(url, payload);
-  const language = normalizeVoiceLanguage(context?.knowledgeBase?.language ?? "en-IN");
-  const voice = VOICE_PROFILES[language].voice;
   const baseUrl = resolveBaseUrl(request);
   const turn = Math.max(1, Number.parseInt(getParam(url, payload, "turn") || "1", 10) || 1);
+
+  const requestedLanguage = getParam(url, payload, "starting_language", "language");
+  const startingLanguage = requestedLanguage
+    ? normalizeStartingLanguage(requestedLanguage)
+    : normalizeVoiceLanguage(context?.knowledgeBase?.language ?? "en-IN");
+  const voiceGender = normalizeVoiceGender(getParam(url, payload, "voice_gender"));
+  const customOpeningScript = normalizeOpeningScript(
+    getParam(url, payload, "opening_script", "openingScript")
+  );
+  const autoSwitchParam = getParam(url, payload, "auto_language_switch", "autoLanguageSwitch");
+  const autoLanguageSwitch = autoSwitchParam
+    ? normalizeAutoLanguageSwitch(autoSwitchParam)
+    : true;
+
   const callUuid = getParam(url, payload, "CallUUID", "call_uuid", "RequestUUID", "request_uuid");
   const recordUrl =
     extractRecordUrl(payload) ||
     (turn > 1 && callUuid ? await resolveLatestVobizRecordingUrl(callUuid) : "");
-  const speech = extractSpeech(payload) || (recordUrl ? await transcribeRecordingUrl(recordUrl, language) : "");
+  let speech =
+    extractSpeech(payload) ||
+    (recordUrl
+      ? await transcribeRecordingUrl(
+          recordUrl,
+          startingLanguage,
+          turn >= 2 && autoLanguageSwitch
+        )
+      : "");
   const digits = extractDigits(payload);
+
+  let language: VoiceLanguage = startingLanguage;
+  if (turn >= 2 && autoLanguageSwitch && speech) {
+    language = detectVoiceLanguage(speech, startingLanguage, true);
+  }
+
   const silentRetryLimitExceeded = turn >= 5 && !speech && !digits;
-  const ending = isHangupEvent(payload) || digits === "9" || turn > MAX_TURNS || silentRetryLimitExceeded;
+  const ending =
+    isHangupEvent(payload) ||
+    digits === "9" ||
+    shouldEndBySpeech(speech, turn) ||
+    turn > MAX_TURNS ||
+    silentRetryLimitExceeded;
 
   let reply: string;
   if (ending) {
-    reply =
-      readText(context?.knowledgeBase?.closing_script, 500) ||
-      "Thank you for your time. Our team will follow up with the confirmed details. Goodbye.";
+    reply = closingReply(language, context?.knowledgeBase?.closing_script ?? undefined);
   } else if (speech) {
     const response = await generateVoiceResponse({
       message: speech,
@@ -544,6 +594,7 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
     reply = response.reply;
   } else if (turn === 1) {
     reply =
+      customOpeningScript ||
       readText(context?.knowledgeBase?.opening_script, 600) ||
       buildFallbackReply({
         message: "hello",
@@ -552,12 +603,13 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
         leadName: context?.leadName,
       });
   } else {
-    reply = "I didn't catch that. Please ask your question after the beep, or press 9 to end the call.";
+    reply = retryReply(language);
   }
 
+  const voice = resolveVoice(language, voiceGender);
   let audioUrl: string | undefined;
   if (process.env.ENABLE_EDGE_TTS_VOBIZ !== "0") {
-    const tts = await synthesizeSpeech(reply, language);
+    const tts = await synthesizeSpeech(reply, language, { gender: voiceGender });
     if (tts.audioBase64) {
       audioUrl = cacheAudio(tts.audioBase64, baseUrl);
     }
@@ -585,13 +637,20 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
     params.set("call_id", context.callId);
   }
   params.set("turn", String(turn + 1));
+  params.set("starting_language", language);
+  params.set("voice_gender", voiceGender);
+  params.set("auto_language_switch", autoLanguageSwitch ? "true" : "false");
+  if (customOpeningScript) {
+    params.set("opening_script", customOpeningScript);
+  }
   const actionUrl = `${baseUrl}/api/voice/vobiz-xml?${params.toString()}`;
 
   return xmlResponse(
     buildVobizXml({
       text: reply,
       voice,
-      prompt: ending ? undefined : "Aapka naam aur business kis cheez ka hai?",
+      gender: voiceGender,
+      prompt: ending ? undefined : VOICE_PROFILES[language].prompt,
       actionUrl: ending ? undefined : actionUrl,
       audioUrl,
       end: ending,

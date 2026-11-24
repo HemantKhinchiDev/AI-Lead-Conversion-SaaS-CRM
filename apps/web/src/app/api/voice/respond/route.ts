@@ -3,10 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 
 import { synthesizeSpeech } from "../../../../lib/edgeTts";
 import {
+  detectVoiceLanguage,
   generateVoiceResponse,
   normalizeVoiceLanguage,
+  resolveVoice,
   sanitizeVoiceHistory,
-  VOICE_PROFILES,
   type VoiceKnowledgeBase,
 } from "../../../../lib/voiceBrain";
 import {
@@ -82,7 +83,7 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "message is required" }, { status: 400 });
   }
 
-  const language = normalizeVoiceLanguage(body.language);
+  const requestedLanguage = normalizeVoiceLanguage(body.language);
   const leadId = readText(body.lead_id, 64);
   const history = sanitizeVoiceHistory(body.history);
   const generateAudio = body.generate_audio !== false;
@@ -92,6 +93,14 @@ export async function POST(request: Request): Promise<Response> {
     starting_language: normalizeStartingLanguage(body.starting_language),
     auto_language_switch: normalizeAutoLanguageSwitch(body.auto_language_switch),
   };
+  const startingLanguage =
+    body.language === undefined
+      ? normalizeVoiceLanguage(voiceSettings.starting_language)
+      : requestedLanguage;
+  const language =
+    voiceSettings.auto_language_switch && history.length > 0
+      ? detectVoiceLanguage(message, startingLanguage, true)
+      : startingLanguage;
 
   const { data: knowledgeBase, error: knowledgeError } = await supabase
     .from("knowledge_bases")
@@ -129,7 +138,9 @@ export async function POST(request: Request): Promise<Response> {
   let ttsProvider: "edge-tts" | "unavailable" = "unavailable";
 
   if (generateAudio) {
-    const tts = await synthesizeSpeech(result.reply, language);
+    const tts = await synthesizeSpeech(result.reply, language, {
+      gender: voiceSettings.voice_gender,
+    });
     audioBase64 = tts.audioBase64;
     ttsProvider = tts.provider;
     if (tts.warning) {
@@ -141,7 +152,7 @@ export async function POST(request: Request): Promise<Response> {
     ok: true,
     reply: result.reply,
     language,
-    voice: VOICE_PROFILES[language].voice,
+    voice: resolveVoice(language, voiceSettings.voice_gender),
     provider: result.provider,
     grounded: result.grounded,
     audio_base64: audioBase64,
