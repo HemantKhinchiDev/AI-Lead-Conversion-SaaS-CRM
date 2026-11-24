@@ -55,11 +55,59 @@ function buildCandidates(
   ];
 }
 
+async function synthesizeViaVpsBridge(
+  text: string,
+  language: string
+): Promise<{ audioBase64: string; mimeType: "audio/mpeg" } | null> {
+  const baseUrl = (
+    process.env.VPS_EDGE_TTS_URL ||
+    "https://father-connectors-insider-event.trycloudflare.com"
+  )
+    .trim()
+    .replace(/\/+$/, "");
+  const secret = (process.env.TTS_BRIDGE_SECRET || "hmnt_tts_2026").trim();
+  if (!baseUrl) return null;
+  try {
+    const u = new URL(baseUrl + "/tts");
+    u.searchParams.set("key", secret);
+    u.searchParams.set("lang", language || "en-IN");
+    u.searchParams.set("text", text.slice(0, 600));
+    const res = await fetch(u.toString(), {
+      method: "GET",
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok) return null;
+    const arr = await res.arrayBuffer();
+    if (!arr || arr.byteLength < 1000) return null;
+    return {
+      audioBase64: Buffer.from(arr).toString("base64"),
+      mimeType: "audio/mpeg",
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function synthesizeSpeech(
   text: string,
   language: VoiceLanguage,
   deps: TtsDependencies = {}
 ): Promise<TtsResult> {
+  const bridged = await synthesizeViaVpsBridge(text, language);
+  if (bridged && bridged.audioBase64) {
+    const voice = language.toLowerCase().startsWith("hi")
+      ? "hi-IN-SwaraNeural"
+      : language.toLowerCase().startsWith("gu")
+      ? "gu-IN-DhwaniNeural"
+      : "en-IN-NeerjaNeural";
+    return {
+      audioBase64: bridged.audioBase64,
+      mimeType: "audio/mpeg",
+      voice,
+      provider: "edge-tts",
+    };
+  }
+
   const voice = VOICE_PROFILES[language].voice;
   const clean = text.replace(/\s+/g, " ").trim().slice(0, MAX_TTS_CHARS);
   if (!clean) {
