@@ -420,13 +420,13 @@ async function resolveCallContext(url: URL, payload: Dict): Promise<CallContext 
 }
 
 function buildVobizXml(input: VobizXmlInput): string {
-  const speak = `<Speak voice="WOMAN">${escapeXml(input.text)}</Speak>`;
+  const speak = `<Speak voice="MAN">${escapeXml(input.text)}</Speak>`;
   if (input.end || !input.actionUrl) {
     return `<?xml version="1.0" encoding="UTF-8"?><Response>${speak}<Hangup/></Response>`;
   }
 
   const audio = input.audioUrl ? `<Play>${escapeXml(input.audioUrl)}</Play>` : speak;
-  const prompt = `<Speak voice="WOMAN">${escapeXml(input.prompt || input.text)}</Speak>`;
+  const prompt = `<Speak voice="MAN">${escapeXml(input.prompt || input.text)}</Speak>`;
   const digits = `<GetDigits action="${escapeXml(
     input.actionUrl
   )}" method="POST" timeout="8" numDigits="1" validDigits="0123456789#*">${prompt}</GetDigits>`;
@@ -591,7 +591,7 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
     buildVobizXml({
       text: reply,
       voice,
-      prompt: ending ? undefined : "Please tell me how I can help you.",
+      prompt: ending ? undefined : "Aapka naam aur business kis cheez ka hai?",
       actionUrl: ending ? undefined : actionUrl,
       audioUrl,
       end: ending,

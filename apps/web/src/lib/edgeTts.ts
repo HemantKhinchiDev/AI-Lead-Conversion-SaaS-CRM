@@ -96,10 +96,10 @@ export async function synthesizeSpeech(
   const bridged = await synthesizeViaVpsBridge(text, language);
   if (bridged && bridged.audioBase64) {
     const voice = language.toLowerCase().startsWith("hi")
-      ? "hi-IN-SwaraNeural"
+      ? "hi-IN-MadhurNeural"
       : language.toLowerCase().startsWith("gu")
-      ? "gu-IN-DhwaniNeural"
-      : "en-IN-NeerjaNeural";
+      ? "gu-IN-NiranjanNeural"
+      : "en-IN-PrabhatNeural";
     return {
       audioBase64: bridged.audioBase64,
       mimeType: "audio/mpeg",
