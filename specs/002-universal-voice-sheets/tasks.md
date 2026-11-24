@@ -56,4 +56,4 @@
   - **Goal:** Write and run `apps/web/tests/e2e/phase2-universal-voice.live.spec.ts` verifying KB training, simulated AI call with `INTERESTED` outcome + summary rendering in table, and export button, plus re-run `phase1-full.live.spec.ts`.
   - **Verify:** `cd apps/web && npx playwright test tests/e2e/phase1-full.live.spec.ts tests/e2e/phase2-universal-voice.live.spec.ts --reporter=list` outputs `2 passed`.
 
-- [ ] **T_VOBIZ_XML_VERIFY**: Verify `docs/PRD.md` + `/api/voice/vobiz-xml` emits valid `<Speak voice="WOMAN">` and matching `<GetDigits>...</GetDigits>` XML (zero `<GetInput>`), pass `npm test`, and verify live Vobiz call CDR has no `Invalid Answer XML` hangup.
+- [x] **T_VOBIZ_XML_VERIFY**: Verify `docs/PRD.md` + `/api/voice/vobiz-xml` emits valid `<Speak voice="WOMAN">` and matching `<GetDigits>...</GetDigits>` XML (zero `<GetInput>`), pass `npm test`, and verify live Vobiz call CDR has no `Invalid Answer XML` hangup.

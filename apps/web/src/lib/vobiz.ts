@@ -271,21 +271,27 @@ export function escapeVobizXml(value: string): string {
     .replace(/'/g, "&apos;");
 }
 
+export const VOBIZ_SPEAK_VOICE = "WOMAN";
+
+export function vobizSpeak(text: string): string {
+  return `<Speak voice="${VOBIZ_SPEAK_VOICE}">${escapeVobizXml(text)}</Speak>`;
+}
+
 export function buildVobizXml(input: VobizXmlInput): string {
-  const config = getVobizApiConfig();
-  const voice = input.voice || config?.edgeVoice || DEFAULT_EDGE_TTS_VOICE;
-  const speak = `<Speak voice="${escapeVobizXml(voice)}">${escapeVobizXml(input.text)}</Speak>`;
+  const speak = vobizSpeak(input.text);
   if (input.end || !input.actionUrl) {
     return `<?xml version="1.0" encoding="UTF-8"?><Response>${speak}<Hangup/></Response>`;
   }
 
   const audio = input.audioUrl ? `<Play>${escapeVobizXml(input.audioUrl)}</Play>` : speak;
-  const prompt = input.prompt
-    ? `<Speak voice="${escapeVobizXml(voice)}">${escapeVobizXml(input.prompt)}</Speak>`
-    : "";
-  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${prompt}<Record action="${escapeVobizXml(
+  const prompt = vobizSpeak(input.prompt || "Please tell me how I can help you.");
+  const digits = `<GetDigits action="${escapeVobizXml(
     input.actionUrl
-  )}" method="POST" maxLength="12" timeout="3" playBeep="true" finishOnKey="#"/></Response>`;
+  )}" method="POST" timeout="8" numDigits="1" validDigits="0123456789#*">${prompt}</GetDigits>`;
+  const record = `<Record action="${escapeVobizXml(
+    input.actionUrl
+  )}" method="POST" maxLength="12" timeout="3" playBeep="true" finishOnKey="#"/>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${digits}${record}</Response>`;
 }
 
 export function buildGroqEdgeTtsVobizXml(
