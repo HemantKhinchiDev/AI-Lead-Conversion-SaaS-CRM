@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
-type VoiceLanguage = "hi-IN" | "gu-IN" | "en-IN";
+import VoiceSettingsPanel, { useVoiceSettings } from "./VoiceSettingsPanel";
+import type { StartingLanguage, VoiceSettings } from "../lib/voiceSettings";
+
+type VoiceLanguage = StartingLanguage;
 
 type VoiceTurn = {
   role: "customer" | "assistant";
@@ -22,12 +25,6 @@ type VoiceResponse = {
   tts_provider?: "edge-tts" | "unavailable";
   warnings?: string[];
   error?: string;
-};
-
-const LANGUAGE_LABELS: Record<VoiceLanguage, string> = {
-  "en-IN": "English (India)",
-  "hi-IN": "Hindi",
-  "gu-IN": "Gujarati",
 };
 
 const DEFAULT_MESSAGES: Record<VoiceLanguage, string> = {
@@ -56,7 +53,8 @@ function readAuthToken(): string {
 
 export default function VoiceDemoModal() {
   const [open, setOpen] = useState(false);
-  const [language, setLanguage] = useState<VoiceLanguage>("en-IN");
+  const { settings, updateSettings } = useVoiceSettings();
+  const language = settings.starting_language;
   const [message, setMessage] = useState(DEFAULT_MESSAGES["en-IN"]);
   const [turns, setTurns] = useState<VoiceTurn[]>([]);
   const [pending, setPending] = useState(false);
@@ -78,13 +76,15 @@ export default function VoiceDemoModal() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open]);
 
-  function handleLanguageChange(value: VoiceLanguage) {
-    setLanguage(value);
-    setMessage(DEFAULT_MESSAGES[value]);
-    setTurns([]);
-    setAudioSrc("");
-    setMeta(null);
-    setError("");
+  function handleSettingsChange(next: VoiceSettings) {
+    if (next.starting_language !== language) {
+      setMessage(DEFAULT_MESSAGES[next.starting_language]);
+      setTurns([]);
+      setAudioSrc("");
+      setMeta(null);
+      setError("");
+    }
+    updateSettings(next);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -111,6 +111,10 @@ export default function VoiceDemoModal() {
         body: JSON.stringify({
           message: text,
           language,
+          opening_script: settings.opening_script,
+          voice_gender: settings.voice_gender,
+          starting_language: settings.starting_language,
+          auto_language_switch: settings.auto_language_switch,
           history,
           generate_audio: true,
         }),
@@ -185,21 +189,11 @@ export default function VoiceDemoModal() {
               </button>
             </div>
 
-            <label className="dash-field modal-field" htmlFor="voice-demo-language">
-              Agent language
-            </label>
-            <select
-              id="voice-demo-language"
-              value={language}
-              onChange={(event) => handleLanguageChange(event.target.value as VoiceLanguage)}
-              className="dash-input"
-            >
-              {(Object.keys(LANGUAGE_LABELS) as VoiceLanguage[]).map((option) => (
-                <option key={option} value={option}>
-                  {LANGUAGE_LABELS[option]}
-                </option>
-              ))}
-            </select>
+            <VoiceSettingsPanel
+              idPrefix="voice-demo"
+              settings={settings}
+              onChange={handleSettingsChange}
+            />
 
             <div className="voice-log" data-testid="voice-demo-log">
               {turns.length === 0 ? (

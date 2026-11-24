@@ -1,6 +1,7 @@
 "use client";
 
 import CsvImportCard from "../../components/CsvImportCard";
+import VoiceSettingsPanel, { useVoiceSettings } from "../../components/VoiceSettingsPanel";
 
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
@@ -14,6 +15,7 @@ import {
   type LeadStatus,
   type PermissionState,
 } from "../../lib/leads";
+import { campaignVoiceSettingsKey, leadVoiceSettingsKey } from "../../lib/voiceSettings";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -96,6 +98,21 @@ export default function DashboardClient() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [notice, setNotice] = useState("");
+  const [voiceTargetKey, setVoiceTargetKey] = useState("");
+  const { settings: voiceSettings, updateSettings: updateVoiceSettings } =
+    useVoiceSettings(voiceTargetKey);
+
+  const voiceTargets = [
+    { value: "", label: "Default · all calls" },
+    ...leads.map((lead) => ({
+      value: leadVoiceSettingsKey(lead.id),
+      label: `Lead · ${lead.full_name}`,
+    })),
+    ...campaigns.map((campaign) => ({
+      value: campaignVoiceSettingsKey(campaign.id),
+      label: `Campaign · ${campaign.name}`,
+    })),
+  ];
 
   const loadLeads = useCallback(() => {
     const controller = new AbortController();
@@ -177,6 +194,9 @@ export default function DashboardClient() {
             </a>
             <a className="nav-link" href="#campaigns">
               Campaigns
+            </a>
+            <a className="nav-link" href="#voice-settings">
+              Voice settings
             </a>
             <a className="nav-link" href="#follow-ups">
               Follow-ups
@@ -286,6 +306,30 @@ export default function DashboardClient() {
                 {notice}
               </p>
             )}
+          </section>
+
+          <section className="section" id="voice-settings" aria-labelledby="voice-settings-title">
+            <div className="section-head">
+              <h2 className="section-title" id="voice-settings-title">
+                Voice call settings
+              </h2>
+              <p className="section-note">
+                Opening pitch, voice, language and auto-switch saved per lead or campaign
+              </p>
+            </div>
+            <div className="lead-form">
+              <VoiceSettingsPanel
+                idPrefix="dashboard-voice"
+                settings={voiceSettings}
+                onChange={updateVoiceSettings}
+                targetKey={voiceTargetKey}
+                targetOptions={voiceTargets}
+                onTargetChange={setVoiceTargetKey}
+              />
+              <p className="section-note">
+                Defaults apply to every call; a lead or campaign override wins for that call.
+              </p>
+            </div>
           </section>
 
           <section className="section" id="leads" aria-labelledby="leads-title">

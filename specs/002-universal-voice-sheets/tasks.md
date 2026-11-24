@@ -1,5 +1,14 @@
 # Phase 2 Autonomous Execution Queue
 
+- [x] **T015: Voice Call Settings UI (`DashboardClient.tsx` & `VoiceDemoModal.tsx`)**
+  - **Goal:** Update `apps/web/src/app/dashboard/DashboardClient.tsx` and `apps/web/src/components/VoiceDemoModal.tsx` to add: (1) a custom Opening Pitch Script textarea (`opening_script`) editable per campaign/lead so every call can start from a custom pitch, (2) a clear Male / Female voice gender selector (`voice_gender`: `"female" | "male"`), and (3) a Starting Language selector (`starting_language`: `"hi-IN" | "en-IN" | "gu-IN"`) plus an "Auto-switch language after detecting user's spoken language" toggle (`auto_language_switch: true`). Pass these fields in the payload to `/api/voice/trigger` and `/api/voice/respond` and persist defaults in state/localStorage.
+  - **Verify:** `cd apps/web && npm test && npm run typecheck && npm run build` passes with 0 errors.
+
+- [ ] **T016: Fix Slow/Robotic Audio, Beep Call Drop & Auto Language Switch (`vobiz-xml`, `voiceBrain`, `edgeTts`)**
+  - **Goal:** Fix post-beep call drops and slow/robotic audio in `apps/web/src/app/api/voice/vobiz-xml/route.ts`, `apps/web/src/lib/voiceBrain.ts`, and `apps/web/src/lib/edgeTts.ts`: (1) start the call immediately with the custom `opening_script` in `starting_language` using natural Indian Female (`hi-IN-SwaraNeural` / `en-IN-NeerjaNeural` / `gu-IN-DhwaniNeural`) or Male (`hi-IN-MadhurNeural` / `en-IN-PrabhatNeural` / `gu-IN-NiranjanNeural`) voice, (2) configure speech/DTMF gather with proper timeout/retries so the call never drops right after the beep, (3) keep Groq (`llama-3.1-8b-instant` / `llama-3.3-70b-versatile`) turn response under 2 seconds, and (4) detect the caller's spoken language on Turn 2+ when `auto_language_switch` is enabled and switch both reply language and TTS voice automatically. Add/update unit tests in `apps/web/tests/vobiz-bridge.test.mjs`.
+  - **Verify:** `cd apps/web && npm test && npm run typecheck && npm run build` passes with 0 errors.
+
+
 - [x] **T011: Vobiz API Client (`apps/web/src/lib/vobiz.ts`)**
   - **Goal:** Create `apps/web/src/lib/vobiz.ts` using `VOBIZ_AUTH_ID`, `VOBIZ_AUTH_TOKEN`, `VOBIZ_FROM_NUMBER` from `process.env`, referencing the existing `plivo.ts` implementation.
   - **Verify:** File exists and uses the specified environment variables with secrets kept server-side.

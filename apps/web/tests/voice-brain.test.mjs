@@ -38,7 +38,7 @@ test("voice brain supports three Indian languages with local edge-tts voices", (
   for (const value of ["hi-IN", "gu-IN", "en-IN"]) {
     assert.ok(lib.includes(`"${value}"`), `missing language: ${value}`);
   }
-  for (const voice of ["hi-IN-SwaraNeural", "gu-IN-DhwaniNeural", "en-IN-NeerjaNeural"]) {
+  for (const voice of ["hi-IN-MadhurNeural", "gu-IN-DhwaniNeural", "en-IN-NeerjaNeural"]) {
     assert.ok(lib.includes(voice), `missing voice: ${voice}`);
   }
   assert.match(lib, /llama-3\.3-70b-versatile/);

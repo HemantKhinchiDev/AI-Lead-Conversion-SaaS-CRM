@@ -2,12 +2,14 @@
 import CsvImportCard from "../../components/CsvImportCard";
 import TrainAgentCard from "../../components/TrainAgentCard";
 import VoiceDemoModal from "../../components/VoiceDemoModal";
+import VoiceSettingsPanel, { useVoiceSettings } from "../../components/VoiceSettingsPanel";
 import SheetSyncCard from "../../components/SheetSyncCard";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "../../lib/supabase";
 import { sanitizeCallOutcome, type CallOutcome } from "../../lib/callAnalysis";
+import { getVoiceSettings, leadVoiceSettingsKey } from "../../lib/voiceSettings";
 
 type Lead = {
   id: string;
@@ -98,6 +100,10 @@ export default function DashboardPage() {
   const [email, setEmail] = useState("");
   const [propertyInterest, setPropertyInterest] = useState("");
   const [consentGiven, setConsentGiven] = useState(true);
+  const [voiceSettingsLeadId, setVoiceSettingsLeadId] = useState("");
+  const { settings: voiceSettings, updateSettings: updateVoiceSettings } = useVoiceSettings(
+    voiceSettingsLeadId ? leadVoiceSettingsKey(voiceSettingsLeadId) : ""
+  );
 
   async function loadUserAndLeads() {
     setLoading(true);
@@ -230,13 +236,20 @@ export default function DashboardPage() {
         return;
       }
 
+      const voiceSettingsForLead = getVoiceSettings(leadVoiceSettingsKey(lead.id));
       const response = await fetch("/api/voice/trigger", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ lead_id: lead.id }),
+        body: JSON.stringify({
+          lead_id: lead.id,
+          opening_script: voiceSettingsForLead.opening_script,
+          voice_gender: voiceSettingsForLead.voice_gender,
+          starting_language: voiceSettingsForLead.starting_language,
+          auto_language_switch: voiceSettingsForLead.auto_language_switch,
+        }),
       });
       const json = await response.json().catch(() => ({}));
       if (!response.ok || json.error) {
@@ -483,6 +496,38 @@ export default function DashboardPage() {
             <TrainAgentCard />
 
             <VoiceDemoModal />
+
+            <section
+              className="dashboard-card"
+              aria-labelledby="voice-settings-title"
+              data-testid="voice-call-settings"
+            >
+              <div className="card-head">
+                <div>
+                  <h2 className="card-title" id="voice-settings-title">
+                    Voice Call Settings
+                  </h2>
+                  <p className="card-subtitle">
+                    Opening pitch script, voice gender, starting language and auto language
+                    switch. Saved in this browser and applied to Trigger AI Call.
+                  </p>
+                </div>
+              </div>
+              <VoiceSettingsPanel
+                idPrefix="dashboard-voice"
+                settings={voiceSettings}
+                onChange={updateVoiceSettings}
+                targetKey={voiceSettingsLeadId ? leadVoiceSettingsKey(voiceSettingsLeadId) : ""}
+                targetOptions={[
+                  { value: "", label: "Default · all calls" },
+                  ...leads.map((lead) => ({
+                    value: lead.id,
+                    label: `Lead · ${lead.full_name}`,
+                  })),
+                ]}
+                onTargetChange={setVoiceSettingsLeadId}
+              />
+            </section>
 
             <CsvImportCard />
 

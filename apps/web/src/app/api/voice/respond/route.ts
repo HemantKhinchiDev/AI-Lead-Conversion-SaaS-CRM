@@ -9,6 +9,12 @@ import {
   VOICE_PROFILES,
   type VoiceKnowledgeBase,
 } from "../../../../lib/voiceBrain";
+import {
+  normalizeAutoLanguageSwitch,
+  normalizeOpeningScript,
+  normalizeStartingLanguage,
+  normalizeVoiceGender,
+} from "../../../../lib/voiceSettings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,6 +26,10 @@ type RespondBody = {
   lead_id?: unknown;
   history?: unknown;
   generate_audio?: unknown;
+  opening_script?: unknown;
+  voice_gender?: unknown;
+  starting_language?: unknown;
+  auto_language_switch?: unknown;
 };
 
 function readBearerToken(request: Request): string {
@@ -76,6 +86,12 @@ export async function POST(request: Request): Promise<Response> {
   const leadId = readText(body.lead_id, 64);
   const history = sanitizeVoiceHistory(body.history);
   const generateAudio = body.generate_audio !== false;
+  const voiceSettings = {
+    opening_script: normalizeOpeningScript(body.opening_script),
+    voice_gender: normalizeVoiceGender(body.voice_gender),
+    starting_language: normalizeStartingLanguage(body.starting_language),
+    auto_language_switch: normalizeAutoLanguageSwitch(body.auto_language_switch),
+  };
 
   const { data: knowledgeBase, error: knowledgeError } = await supabase
     .from("knowledge_bases")
@@ -132,5 +148,6 @@ export async function POST(request: Request): Promise<Response> {
     audio_mime_type: "audio/mpeg",
     tts_provider: ttsProvider,
     warnings,
+    voice_settings: voiceSettings,
   });
 }

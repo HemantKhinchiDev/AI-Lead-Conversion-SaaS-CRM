@@ -127,7 +127,7 @@ test("vobiz outbound trigger logs provider call ids and preserves simulated fall
 test("vobiz xml endpoint returns escaped, bounded VobizXML with TTS and input collection", () => {
   const route = source(XML_ROUTE);
   assert.match(route, /function buildVobizXml/);
-  assert.match(route, /<Speak voice="WOMAN">/);
+  assert.match(route, /<Speak voice="MAN">/);
   assert.match(route, /<GetDigits action=/);
   assert.match(route, /<\/GetDigits>/);
   assert.match(route, /method="POST" timeout="8" numDigits="1" validDigits="0123456789#\*"/);

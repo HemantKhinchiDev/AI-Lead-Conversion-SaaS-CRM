@@ -5,6 +5,12 @@ import { getVobizConfig, normalizeVobizNumber, placeVobizCall } from "../../../.
 import { evaluateVoiceEligibility } from "../../../../lib/voiceGuard";
 import { analyzeCall, callOutcomeFields } from "../../../../lib/callAnalysis";
 import { isPublicHttpUrl } from "../../../../lib/knowledgeBase";
+import {
+  normalizeAutoLanguageSwitch,
+  normalizeOpeningScript,
+  normalizeStartingLanguage,
+  normalizeVoiceGender,
+} from "../../../../lib/voiceSettings";
 
 export const runtime = "nodejs";
 
@@ -44,6 +50,13 @@ export async function POST(req: Request) {
     if (!leadId) {
       return NextResponse.json({ error: "lead_id is required" }, { status: 400 });
     }
+
+    const voiceSettings = {
+      opening_script: normalizeOpeningScript(body?.opening_script),
+      voice_gender: normalizeVoiceGender(body?.voice_gender),
+      starting_language: normalizeStartingLanguage(body?.starting_language),
+      auto_language_switch: normalizeAutoLanguageSwitch(body?.auto_language_switch),
+    };
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -186,6 +199,7 @@ export async function POST(req: Request) {
         mode: "live",
         provider: "vobiz",
         provider_call_id: dispatch.providerCallId ?? null,
+        voice_settings: voiceSettings,
       });
     }
 
@@ -265,6 +279,7 @@ export async function POST(req: Request) {
         mode: "live",
         provider: "plivo",
         provider_call_id: dispatch.providerCallId ?? null,
+        voice_settings: voiceSettings,
       });
     }
 
@@ -325,6 +340,7 @@ export async function POST(req: Request) {
       mode: "sandbox",
       provider: "sandbox_voice_sim",
       warnings: [sandboxWarning],
+      voice_settings: voiceSettings,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Voice trigger failed";
