@@ -605,36 +605,29 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
   }
 
   const voice = resolveVoice(language, voiceGender);
-  const isTurnOneGreeting = turn === 1 && !speech && !ending;
-      const rawTtsPromise =
-        !isTurnOneGreeting && process.env.ENABLE_EDGE_TTS_VOBIZ !== "0"
+  const ttsPromise =
+        process.env.ENABLE_EDGE_TTS_VOBIZ !== "0"
           ? synthesizeSpeech(reply, language, { gender: voiceGender })
           : Promise.resolve({ audioBase64: "" });
-      const ttsPromise = Promise.race([
-        rawTtsPromise,
-        new Promise<{ audioBase64: string }>((resolve) =>
-          setTimeout(() => resolve({ audioBase64: "" }), 1100)
-        ),
-      ]);
 
-  const dbPromise = (async () => {
-    if (!context) return;
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-    const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)?.trim();
-    if (!supabaseUrl || !supabaseKey) return;
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    });
-    const line = speech ? `Customer: ${speech}\nAgent: ${reply}` : `Agent: ${reply}`;
-    const nextTranscript = [context.transcript, line].filter(Boolean).join("\n").slice(-MAX_TRANSCRIPT_CHARS);
-    await supabase
-      .from("call_logs")
-      .update({ transcript: nextTranscript, full_transcript: nextTranscript })
-      .eq("id", context.callId)
-      .eq("tenant_id", context.tenantId);
-  })();
+      const dbPromise = (async () => {
+        if (!context) return;
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+        const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)?.trim();
+        if (!supabaseUrl || !supabaseKey) return;
+        const supabase = createClient(supabaseUrl, supabaseKey, {
+          auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        });
+        const line = speech ? `Customer: ${speech}\nAgent: ${reply}` : `Agent: ${reply}`;
+        const nextTranscript = [context.transcript, line].filter(Boolean).join("\n").slice(-MAX_TRANSCRIPT_CHARS);
+        await supabase
+          .from("call_logs")
+          .update({ transcript: nextTranscript, full_transcript: nextTranscript })
+          .eq("id", context.callId)
+          .eq("tenant_id", context.tenantId);
+      })();
 
-  void dbPromise;
+      void dbPromise;
       const tts = await ttsPromise;
   const audioUrl = tts.audioBase64 ? cacheAudio(tts.audioBase64, baseUrl) : undefined;
 
