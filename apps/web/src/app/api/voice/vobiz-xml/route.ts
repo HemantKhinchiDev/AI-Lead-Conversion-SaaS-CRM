@@ -451,7 +451,7 @@ function buildVobizXml(input: VobizXmlInput): string {
   }
 
   const audio = input.audioUrl ? `<Play>${escapeXml(input.audioUrl)}</Play>` : speak;
-  const record = `<Record action="${escapeXml(input.actionUrl)}" method="POST" maxLength="10" timeout="2" retries="0" playBeep="false" finishOnKey="#"/>`;
+  const record = `<Record action="${escapeXml(input.actionUrl)}" method="POST" maxLength="10" timeout="1" retries="0" playBeep="false" finishOnKey="#"/>`;
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${record}</Response>`;
 }
 
