@@ -132,7 +132,7 @@ const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_FAST_MODEL = "openai/gpt-oss-20b";
 const GROQ_PREMIUM_MODEL = "qwen/qwen3.8-27b";
 const GROQ_TIMEOUT_MS = 5000;
-const GROQ_MAX_TOKENS = 160;
+const GROQ_MAX_TOKENS = 95;
 const MAX_REPLY_CHARS = 380;
 const MAX_MESSAGE_CHARS = 1000;
 const MAX_HISTORY_TURNS = 6;
@@ -514,6 +514,7 @@ async function callGroq(
         model: resolveGroqModel(),
         temperature: 0.3,
         max_tokens: GROQ_MAX_TOKENS,
+        reasoning_effort: "low",
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },

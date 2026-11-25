@@ -291,10 +291,11 @@ async function synthesizeViaVpsBridge(
     u.searchParams.set("lang", language);
     u.searchParams.set("voice", voice);
     u.searchParams.set("rate", rate);
+    u.searchParams.set("volume", "+35%");
     u.searchParams.set("text", text.slice(0, MAX_TTS_CHARS));
     const res = await fetch(u.toString(), {
       method: "GET",
-      signal: AbortSignal.timeout(5500),
+      signal: AbortSignal.timeout(3800),
     });
     if (!res.ok) return null;
     const arr = await res.arrayBuffer();
