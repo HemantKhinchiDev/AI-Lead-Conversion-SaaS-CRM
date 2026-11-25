@@ -26,7 +26,7 @@ test("knowledge base trainer route enforces auth, tenant isolation, and upserts 
 test("knowledge base lib uses Jina with fetch fallback and Groq JSON mode", () => {
   const lib = read("src/lib/knowledgeBase.ts");
   assert.match(lib, /https:\/\/r\.jina\.ai\//);
-  assert.match(lib, /llama-3\.3-70b-versatile/);
+  assert.match(lib, /qwen\/qwen3\.8-27b/);
   assert.match(lib, /response_format: \{ type: "json_object" \}/);
   assert.match(lib, /GROQ_API_KEY/);
   assert.match(lib, /buildFallbackKnowledge/);

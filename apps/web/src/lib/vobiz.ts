@@ -291,17 +291,8 @@ export function buildVobizXml(input: VobizXmlInput): string {
   }
 
   const audio = input.audioUrl ? `<Play>${escapeVobizXml(input.audioUrl)}</Play>` : speak;
-  const prompt = vobizSpeak(
-    input.prompt || "Please speak now, or press 9 to end the call.",
-    speakVoice
-  );
-  const digits = `<GetDigits action="${escapeVobizXml(
-    input.actionUrl
-  )}" method="POST" timeout="2" retries="1" numDigits="1" validDigits="0123456789#*">${prompt}</GetDigits>`;
-  const record = `<Record action="${escapeVobizXml(
-    input.actionUrl
-  )}" method="POST" maxLength="12" timeout="8" retries="2" playBeep="true" finishOnKey="#"/>`;
-  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${digits}${record}</Response>`;
+  const record = `<Record action="${escapeVobizXml(input.actionUrl)}" method="POST" maxLength="10" timeout="1" retries="0" playBeep="false" finishOnKey="#"/>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${record}</Response>`;
 }
 
 export function buildGroqEdgeTtsVobizXml(

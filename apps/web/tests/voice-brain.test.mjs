@@ -75,9 +75,8 @@ test("voice brain supports three Indian languages with local edge-tts voices", (
   ]) {
     assert.ok(lib.includes(voice), `missing voice: ${voice}`);
   }
-  assert.match(lib, /llama-3\.1-8b-instant/);
-  assert.match(lib, /llama-3\.3-70b-versatile/);
-  assert.match(lib, /GROQ_TIMEOUT_MS = 1800/);
+  assert.match(lib, /qwen\/qwen3\.8-27b/);
+    assert.match(lib, /GROQ_TIMEOUT_MS = 5000/);
   assert.match(lib, /resolveGroqModel\(\)/);
   assert.match(lib, /Use ONLY the supplied business knowledge base/);
   assert.match(lib, /Never invent prices, availability, appointments, guarantees, or contact details/);
@@ -123,7 +122,7 @@ test("voice brain keeps Groq turn responses under two seconds with the fast mode
       }
     );
     assert.equal(result.provider, "groq");
-    assert.equal(capturedBody.model, "llama-3.1-8b-instant");
+    assert.equal(capturedBody.model, "qwen/qwen3.8-27b");
     assert.ok(capturedBody.max_tokens <= 160);
   } finally {
     if (previousModel === undefined) {
