@@ -512,7 +512,7 @@ async function callGroq(
       },
       body: JSON.stringify({
         model: resolveGroqModel(),
-        temperature: 0.3,
+        temperature: 0.2,
         max_tokens: GROQ_MAX_TOKENS,
         reasoning_effort: "low",
         messages: [
