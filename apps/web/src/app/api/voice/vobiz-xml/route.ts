@@ -219,11 +219,11 @@ async function transcribeRecordingUrl(
     authId && authToken ? { "X-Auth-ID": authId, "X-Auth-Token": authToken } : {};
 
   try {
-    let audioRes = await fetch(recordUrl, { signal: AbortSignal.timeout(4000) });
+    let audioRes = await fetch(recordUrl, { signal: AbortSignal.timeout(1200) });
     if (!audioRes.ok && Object.keys(vobizHeaders).length > 0) {
       audioRes = await fetch(recordUrl, {
         headers: vobizHeaders,
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(1200),
       });
     }
     if (!audioRes.ok) {
@@ -252,7 +252,7 @@ async function transcribeRecordingUrl(
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}` },
       body: form,
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(1200),
     });
     if (!sttRes.ok) {
       return "";
@@ -605,10 +605,17 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
   }
 
   const voice = resolveVoice(language, voiceGender);
-  const ttsPromise =
-    process.env.ENABLE_EDGE_TTS_VOBIZ !== "0"
-      ? synthesizeSpeech(reply, language, { gender: voiceGender })
-      : Promise.resolve({ audioBase64: "" });
+  const isTurnOneGreeting = turn === 1 && !speech && !ending;
+      const rawTtsPromise =
+        !isTurnOneGreeting && process.env.ENABLE_EDGE_TTS_VOBIZ !== "0"
+          ? synthesizeSpeech(reply, language, { gender: voiceGender })
+          : Promise.resolve({ audioBase64: "" });
+      const ttsPromise = Promise.race([
+        rawTtsPromise,
+        new Promise<{ audioBase64: string }>((resolve) =>
+          setTimeout(() => resolve({ audioBase64: "" }), 1100)
+        ),
+      ]);
 
   const dbPromise = (async () => {
     if (!context) return;

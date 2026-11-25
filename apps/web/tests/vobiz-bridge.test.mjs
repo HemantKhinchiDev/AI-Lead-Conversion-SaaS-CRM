@@ -270,7 +270,7 @@ test("T016 bridges use instant script, natural neural voices and Turn 2+ auto la
   assert.match(brain, /"en-IN-PrabhatNeural"/);
   assert.match(brain, /"gu-IN-NiranjanNeural"/);
   assert.match(brain, /GROQ_FAST_MODEL = "qwen\/qwen3\.8-27b"/);
-  assert.match(brain, /GROQ_TIMEOUT_MS = 2000/);
+  assert.match(brain, /GROQ_TIMEOUT_MS = 1500/);
 
   assert.match(tts, /resolveVoice\(language, deps\.gender \?\? "female"\)/);
   assert.match(tts, /u\.searchParams\.set\("voice", voice\)/);
