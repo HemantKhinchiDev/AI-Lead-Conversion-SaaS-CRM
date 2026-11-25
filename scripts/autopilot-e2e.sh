@@ -22,10 +22,10 @@ notify_hermes() {
   for env_file in "$HOME/hermes/.env" "$HOME/.env" "$REPO_DIR/.env"; do
     if [ -f "$env_file" ]; then
       if [ -z "$token" ]; then
-        token=$(grep -E '^(TELEGRAM_BOT_TOKEN\vert{}HERMES_BOT_TOKEN\vert{}BOT_TOKEN)=' "$env_file" | head -n1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+        token=$(grep -E '^(TELEGRAM_BOT_TOKEN|HERMES_BOT_TOKEN|BOT_TOKEN)=' "$env_file" | head -n1 | cut -d= -f2- | tr -d '"' | tr -d "'")
       fi
       if [ -z "$chat_id" ]; then
-        chat_id=$(grep -E '^(TELEGRAM_CHAT_ID\vert{}HERMES_CHAT_ID\vert{}ADMIN_CHAT_ID\vert{}ALLOWED_USERS)=' "$env_file" | head -n1 | cut -d= -f2- | cut -d, -f1 | tr -d '"' | tr -d "'")
+        chat_id=$(grep -E '^(TELEGRAM_CHAT_ID|HERMES_CHAT_ID|ADMIN_CHAT_ID|ALLOWED_USERS)=' "$env_file" | head -n1 | cut -d= -f2- | cut -d, -f1 | tr -d '"' | tr -d "'")
       fi
     fi
   done
@@ -150,9 +150,9 @@ git push origin master
 (cd "$REPO_DIR" && npx vercel --prod --yes)
 
 echo "=== POST-DEPLOY LIVE ROUTE CHECK (NO CALL) ==="
-XML_STATUS=$(curl -s -o /tmp/vobiz-xml-check.txt -w "\%{http_code}" "${LIVE_URL}/api/voice/vobiz-xml?lang=hi-IN&leadName=Rohan")
+XML_STATUS=$(curl -s -o /tmp/vobiz-xml-check.txt -w "%{http_code}" "${LIVE_URL}/api/voice/vobiz-xml?lang=hi-IN&leadName=Rohan")
 echo "VOBIZ_XML_HTTP=$XML_STATUS"
-if [ "$XML_STATUS" -lt 200 ] \vert{}\vert{} [ "$XML_STATUS" -ge 300 ]; then
+if [ "$XML_STATUS" -lt 200 ] || [ "$XML_STATUS" -ge 300 ]; then
   echo "POST_DEPLOY_CHECK_FAILED: vobiz-xml returned $XML_STATUS"
   exit 1
 fi
