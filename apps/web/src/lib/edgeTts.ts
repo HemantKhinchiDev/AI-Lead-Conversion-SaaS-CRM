@@ -24,7 +24,7 @@ const S_TO_NS = 1000000000;
 export type TtsResult = {
   audioBase64: string | null;
   mimeType: "audio/mpeg";
-  provider: "edge-tts" | "unavailable";
+  provider: "sarvam" | "edge-tts" | "unavailable";
   voice: string;
   warning?: string;
 };
@@ -309,6 +309,70 @@ async function synthesizeViaVpsBridge(
   }
 }
 
+const SARVAM_TTS_ENDPOINT = "https://api.sarvam.ai/text-to-speech";
+const SARVAM_MODEL = "bulbul:v4-flash";
+
+function resolveSarvamLanguageCode(language: VoiceLanguage): string {
+  const normalized = String(language || "").toLowerCase();
+  if (normalized.startsWith("gu")) return "gu-IN";
+  if (normalized.startsWith("en")) return "en-IN";
+  return "hi-IN";
+}
+
+function resolveSarvamSpeaker(language: VoiceLanguage, gender: VoiceGender): string {
+  const normalized = String(language || "").toLowerCase();
+  const isMale = gender === "male";
+  if (normalized.startsWith("gu")) {
+    return isMale ? "bhavik_gu_conversation" : "pooja_gu_conversational";
+  }
+  if (normalized.startsWith("en")) {
+    return isMale ? "dev_en_conversational" : "simran_en_sales";
+  }
+  return isMale ? "aayan_hi_conversational" : "kavya_hi_conversational";
+}
+
+async function synthesizeViaSarvam(
+  text: string,
+  language: VoiceLanguage,
+  gender: VoiceGender
+): Promise<{ audioBase64: string; mimeType: "audio/mpeg"; voice: string } | null> {
+  const apiKey = (process.env.SARVAM_API_KEY ?? "").trim();
+  if (!apiKey) return null;
+
+  const targetLanguageCode = resolveSarvamLanguageCode(language);
+  const speaker = resolveSarvamSpeaker(language, gender);
+
+  try {
+    const res = await fetch(SARVAM_TTS_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-subscription-key": apiKey,
+      },
+      body: JSON.stringify({
+        text: text.slice(0, MAX_TTS_CHARS),
+        target_language_code: targetLanguageCode,
+        speaker,
+        model: SARVAM_MODEL,
+        speech_sample_rate: 16000,
+        pace: 1.15,
+      }),
+      signal: AbortSignal.timeout(4500),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { audios?: string[] };
+    const b64 = Array.isArray(data.audios) ? data.audios[0]?.trim() : "";
+    if (!b64 || b64.length < 200) return null;
+    return {
+      audioBase64: b64,
+      mimeType: "audio/mpeg",
+      voice: `sarvam:${SARVAM_MODEL}:${speaker}:${targetLanguageCode}`,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function synthesizeSpeech(
   text: string,
   language: VoiceLanguage,
@@ -329,6 +393,17 @@ export async function synthesizeSpeech(
   }
 
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const gender: VoiceGender = deps.gender ?? "female";
+
+  const sarvamResult = await synthesizeViaSarvam(clean, language, gender);
+  if (sarvamResult && sarvamResult.audioBase64) {
+    return {
+      audioBase64: sarvamResult.audioBase64,
+      mimeType: "audio/mpeg",
+      provider: "sarvam",
+      voice: sarvamResult.voice,
+    };
+  }
 
   const bridged = await synthesizeViaVpsBridge(clean, language, voice, rate);
   if (bridged && bridged.audioBase64) {

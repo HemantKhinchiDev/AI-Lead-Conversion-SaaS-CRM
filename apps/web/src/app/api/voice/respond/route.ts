@@ -135,7 +135,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const warnings = [...result.warnings];
   let audioBase64: string | null = null;
-  let ttsProvider: "edge-tts" | "unavailable" = "unavailable";
+  let ttsProvider: "sarvam" | "edge-tts" | "unavailable" = "unavailable";
 
   if (generateAudio) {
     const tts = await synthesizeSpeech(result.reply, language, {
