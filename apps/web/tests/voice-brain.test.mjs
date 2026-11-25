@@ -76,7 +76,7 @@ test("voice brain supports three Indian languages with local edge-tts voices", (
     assert.ok(lib.includes(voice), `missing voice: ${voice}`);
   }
   assert.match(lib, /qwen\/qwen3\.8-27b/);
-    assert.match(lib, /GROQ_TIMEOUT_MS = 5000/);
+    assert.match(lib, /GROQ_TIMEOUT_MS = 2000/);
   assert.match(lib, /resolveGroqModel\(\)/);
   assert.match(lib, /Use ONLY the supplied business knowledge base/);
   assert.match(lib, /Never invent prices, availability, appointments, guarantees, or contact details/);

@@ -186,7 +186,7 @@ async function resolveLatestVobizRecordingUrl(callUuid: string): Promise<string>
     try {
       const res = await fetch(endpoint, {
         headers: { "X-Auth-ID": authId, "X-Auth-Token": authToken },
-        signal: AbortSignal.timeout(2500),
+        signal: AbortSignal.timeout(1200),
       });
       if (res.ok) {
         const json = (await res.json()) as {
@@ -627,7 +627,8 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
       .eq("tenant_id", context.tenantId);
   })();
 
-  const [tts] = await Promise.all([ttsPromise, dbPromise]);
+  void dbPromise;
+      const tts = await ttsPromise;
   const audioUrl = tts.audioBase64 ? cacheAudio(tts.audioBase64, baseUrl) : undefined;
 
   const params = new URLSearchParams();
