@@ -186,7 +186,7 @@ async function resolveLatestVobizRecordingUrl(callUuid: string): Promise<string>
     try {
       const res = await fetch(endpoint, {
         headers: { "X-Auth-ID": authId, "X-Auth-Token": authToken },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(2500),
       });
       if (res.ok) {
         const json = (await res.json()) as {
@@ -199,9 +199,6 @@ async function resolveLatestVobizRecordingUrl(callUuid: string): Promise<string>
       }
     } catch {
       // retry below
-    }
-    if (attempt < 1) {
-      await new Promise((resolve) => setTimeout(resolve, 250));
     }
   }
   return "";
@@ -222,11 +219,11 @@ async function transcribeRecordingUrl(
     authId && authToken ? { "X-Auth-ID": authId, "X-Auth-Token": authToken } : {};
 
   try {
-    let audioRes = await fetch(recordUrl, { signal: AbortSignal.timeout(10000) });
+    let audioRes = await fetch(recordUrl, { signal: AbortSignal.timeout(4000) });
     if (!audioRes.ok && Object.keys(vobizHeaders).length > 0) {
       audioRes = await fetch(recordUrl, {
         headers: vobizHeaders,
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(4000),
       });
     }
     if (!audioRes.ok) {
@@ -255,7 +252,7 @@ async function transcribeRecordingUrl(
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}` },
       body: form,
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(5000),
     });
     if (!sttRes.ok) {
       return "";
