@@ -129,9 +129,9 @@ type VoiceDependencies = {
 type VoiceIntent = "greeting" | "pricing" | "location" | "services" | "callback" | "general";
 
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_FAST_MODEL = "llama-3.1-8b-instant";
-const GROQ_PREMIUM_MODEL = "llama-3.3-70b-versatile";
-const GROQ_TIMEOUT_MS = 1800;
+const GROQ_FAST_MODEL = "openai/gpt-oss-20b";
+const GROQ_PREMIUM_MODEL = "qwen/qwen3.8-27b";
+const GROQ_TIMEOUT_MS = 5000;
 const GROQ_MAX_TOKENS = 160;
 const MAX_REPLY_CHARS = 380;
 const MAX_MESSAGE_CHARS = 1000;

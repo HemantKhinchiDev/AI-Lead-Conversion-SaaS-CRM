@@ -11,7 +11,7 @@ const execFileAsync = promisify(execFile);
 
 const MAX_TTS_CHARS = 600;
 const DEFAULT_TIMEOUT_MS = 15000;
-const DEFAULT_SPEECH_RATE = "+5%";
+const DEFAULT_SPEECH_RATE = "+18%";
 const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 const EDGE_TRUSTED_CLIENT_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
 const EDGE_CHROMIUM_FULL_VERSION = "143.0.3650.75";
@@ -279,11 +279,12 @@ async function synthesizeViaVpsBridge(
   voice: string,
   rate: string
 ): Promise<{ audioBase64: string; mimeType: "audio/mpeg" } | null> {
-  const baseUrl = process.env.VPS_EDGE_TTS_URL?.trim().replace(/\/+$/, "") || "";
-  if (!baseUrl) return null;
+  const rawUrl = process.env.VPS_EDGE_TTS_URL?.trim().replace(/\/+$/, "") || "";
+  if (!rawUrl) return null;
+  const endpointUrl = rawUrl.endsWith("/tts") ? rawUrl : `${rawUrl}/tts`;
   const secret = process.env.TTS_BRIDGE_SECRET?.trim() || "";
   try {
-    const u = new URL(baseUrl + "/tts");
+    const u = new URL(endpointUrl);
     if (secret) {
       u.searchParams.set("key", secret);
     }
@@ -293,7 +294,7 @@ async function synthesizeViaVpsBridge(
     u.searchParams.set("text", text.slice(0, MAX_TTS_CHARS));
     const res = await fetch(u.toString(), {
       method: "GET",
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(5500),
     });
     if (!res.ok) return null;
     const arr = await res.arrayBuffer();
@@ -328,20 +329,20 @@ export async function synthesizeSpeech(
 
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  const wsResult = await synthesizeViaNodeWebSocket(clean, voice, rate, timeoutMs);
-  if (wsResult && wsResult.audioBase64) {
+  const bridged = await synthesizeViaVpsBridge(clean, language, voice, rate);
+  if (bridged && bridged.audioBase64) {
     return {
-      audioBase64: wsResult.audioBase64,
+      audioBase64: bridged.audioBase64,
       mimeType: "audio/mpeg",
       provider: "edge-tts",
       voice,
     };
   }
 
-  const bridged = await synthesizeViaVpsBridge(clean, language, voice, rate);
-  if (bridged && bridged.audioBase64) {
+  const wsResult = await synthesizeViaNodeWebSocket(clean, voice, rate, Math.min(timeoutMs, 5000));
+  if (wsResult && wsResult.audioBase64) {
     return {
-      audioBase64: bridged.audioBase64,
+      audioBase64: wsResult.audioBase64,
       mimeType: "audio/mpeg",
       provider: "edge-tts",
       voice,

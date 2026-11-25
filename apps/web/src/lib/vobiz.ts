@@ -158,9 +158,9 @@ export type VobizWebhookEvent = {
 export function getVobizApiConfig(
   env: NodeJS.ProcessEnv = process.env
 ): VobizApiConfig | null {
-  const apiKey = readEnv(env.VOBIz_API_KEY) || readEnv(env.VOBIZ_AUTH_TOKEN);
-  const accountId = readEnv(env.VOBIz_ACCOUNT_ID) || readEnv(env.VOBIZ_AUTH_ID);
-  const fromNumber = readEnv(env.VOBIz_FROM_NUMBER) || readEnv(env.VOBIZ_FROM_NUMBER);
+  const apiKey = readEnv(env.VOBIZ_API_KEY) || readEnv(env.VOBIZ_AUTH_TOKEN);
+  const accountId = readEnv(env.VOBIZ_ACCOUNT_ID) || readEnv(env.VOBIZ_AUTH_ID);
+  const fromNumber = readEnv(env.VOBIZ_FROM_NUMBER);
   if (!apiKey || !accountId || !fromNumber) {
     return null;
   }

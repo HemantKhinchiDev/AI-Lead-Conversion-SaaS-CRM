@@ -182,7 +182,7 @@ async function resolveLatestVobizRecordingUrl(callUuid: string): Promise<string>
   const endpoint = `https://api.vobiz.ai/api/v1/Account/${encodeURIComponent(
     authId
   )}/Recording/?call_uuid=${encodeURIComponent(callUuid)}&limit=1`;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const res = await fetch(endpoint, {
         headers: { "X-Auth-ID": authId, "X-Auth-Token": authToken },
@@ -200,8 +200,8 @@ async function resolveLatestVobizRecordingUrl(callUuid: string): Promise<string>
     } catch {
       // retry below
     }
-    if (attempt < 2) {
-      await new Promise((resolve) => setTimeout(resolve, 1100));
+    if (attempt < 1) {
+      await new Promise((resolve) => setTimeout(resolve, 550));
     }
   }
   return "";
@@ -236,7 +236,8 @@ async function transcribeRecordingUrl(
     if (!arrayBuffer.byteLength) {
       return "";
     }
-    const contentType = audioRes.headers.get("content-type") || "audio/mpeg";
+    const rawCt = audioRes.headers.get("content-type") || "audio/mpeg";
+    const contentType = rawCt.startsWith("audio/") ? rawCt : "audio/mpeg";
     const ext = contentType.includes("wav") ? "wav" : "mp3";
     const form = new FormData();
     form.append("file", new Blob([arrayBuffer], { type: contentType }), `caller.${ext}`);
@@ -445,20 +446,13 @@ function buildVobizXml(input: VobizXmlInput): string {
   const speakVoice = input.speakVoice ?? resolveSpeakVoice(input.gender);
   const speak = `<Speak voice="${speakVoice}">${escapeXml(input.text)}</Speak>`;
   if (input.end || !input.actionUrl) {
-    return `<?xml version="1.0" encoding="UTF-8"?><Response>${speak}<Hangup/></Response>`;
+    const endAudio = input.audioUrl ? `<Play>${escapeXml(input.audioUrl)}</Play>` : speak;
+    return `<?xml version="1.0" encoding="UTF-8"?><Response>${endAudio}<Hangup/></Response>`;
   }
 
   const audio = input.audioUrl ? `<Play>${escapeXml(input.audioUrl)}</Play>` : speak;
-  const prompt = `<Speak voice="${speakVoice}">${escapeXml(
-    input.prompt || VOICE_PROFILES["en-IN"].prompt
-  )}</Speak>`;
-  const digits = `<GetDigits action="${escapeXml(
-    input.actionUrl
-  )}" method="POST" timeout="2" retries="1" numDigits="1" validDigits="0123456789#*">${prompt}</GetDigits>`;
-  const record = `<Record action="${escapeXml(
-    input.actionUrl
-  )}" method="POST" maxLength="12" timeout="8" retries="2" playBeep="true" finishOnKey="#"/>`;
-  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${digits}${record}</Response>`;
+  const record = `<Record action="${escapeXml(input.actionUrl)}" method="POST" maxLength="12" timeout="4" retries="1" playBeep="false" finishOnKey="#"/>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${record}</Response>`;
 }
 
 function xmlResponse(xml: string): NextResponse {
@@ -593,15 +587,22 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
     });
     reply = response.reply;
   } else if (turn === 1) {
+    const defaultUniversalIntro =
+      language === "gu-IN"
+        ? voiceGender === "male"
+          ? "નમસ્તે, હું હેમંત બોલું છું. હું બિઝનેસ માટે પ્રોફેશનલ વેબસાઇટ્સ, એઆઈ વોઈસ આસિસ્ટન્ટ અને ઓટોમેશન સિસ્ટમ બનાવું છું, જે તમારા કસ્ટમર કોલ્સ અને લીડ્સને ચોવીસ કલાક હેન્ડલ કરે છે. શું તમે અમારી હેલ્પથી તમારા બિઝનેસને ગ્રો કરવા માંગો છો?"
+          : "નમસ્તે, હું હેમંતની ટીમમાંથી બોલું છું. અમે બિઝનેસ માટે પ્રોફેશનલ વેબસાઇટ્સ, એઆઈ વોઈસ આસિસ્ટન્ટ અને ઓટોમેશન સિસ્ટમ બનાવીએ છીએ, જે તમારા કસ્ટમર કોલ્સ અને લીડ્સને ચોવીસ કલાક હેન્ડલ કરે છે. શું તમે અમારી હેલ્પથી તમારા બિઝનેસને ગ્રો કરવા માંગો છો?"
+        : language === "en-IN"
+        ? voiceGender === "male"
+          ? "Hello, this is Hemant speaking. I build high-converting websites, AI voice assistants, and smart automation systems that handle your customer calls and leads 24/7. Would you like to grow your business with our help?"
+          : "Hello, I’m calling from Hemant’s team. We build high-converting websites, AI voice assistants, and smart automation systems that handle your customer calls and leads 24/7. Would you like to grow your business with our help?"
+        : voiceGender === "male"
+        ? "नमस्ते, मैं हेमंत बोल रहा हूँ। मैं बिज़नेसेज़ के लिए हाई-कन्वर्टिंग वेबसाइट्स, एआई वॉइस असिस्टेंट और स्मार्ट ऑटोमेशन सिस्टम बनाता हूँ, जो आपकी कस्टमर कॉल्स और लीड्स को चौबीस घंटे हैंडल करते हैं। क्या आप हमारी हेल्प से अपने बिज़नेस को ग्रो करना चाहते हैं?"
+        : "नमस्ते, मैं हेमंत की टीम से बोल रही हूँ। हम बिज़नेसेज़ के लिए हाई-कन्वर्टिंग वेबसाइट्स, एआई वॉइस असिस्टेंट और स्मार्ट ऑटोमेशन सिस्टम बनाते हैं, जो आपकी कस्टमर कॉल्स और लीड्स को चौबीस घंटे हैंडल करते हैं। क्या आप हमारी हेल्प से अपने बिज़नेस को ग्रो करना चाहते हैं?";
     reply =
       customOpeningScript ||
       readText(context?.knowledgeBase?.opening_script, 600) ||
-      buildFallbackReply({
-        message: "hello",
-        language,
-        knowledgeBase: context?.knowledgeBase ?? null,
-        leadName: context?.leadName,
-      });
+      defaultUniversalIntro;
   } else {
     reply = retryReply(language);
   }
