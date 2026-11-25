@@ -59,7 +59,7 @@ type PageText = {
 };
 
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_MODEL = "qwen/qwen3.8-27b";
 const JINA_PREFIX = "https://r.jina.ai/";
 const MAX_SOURCE_CHARS = 30000;
 const MAX_PAGE_CHARS = 20000;
