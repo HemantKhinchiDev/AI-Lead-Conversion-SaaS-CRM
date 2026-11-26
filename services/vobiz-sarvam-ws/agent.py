@@ -1,0 +1,334 @@
+import asyncio
+import audioop
+import base64
+import json
+import os
+import re
+import time
+from typing import Any
+import httpx
+from sarvam import VoicePipelineClient
+
+OUTBOUND_SAMPLE_RATE = int(os.getenv("OUTBOUND_SAMPLE_RATE", "8000"))
+SAMPLE_WIDTH_BYTES = 2
+AGENT_LANGUAGE = os.getenv("AGENT_LANGUAGE", "unknown")
+TTS_SPEAKER = os.getenv("TTS_SPEAKER", "simran_hi_conversation")
+CRM_WEBHOOK_URL = os.getenv("CRM_WEBHOOK_URL", "").strip()
+
+SYSTEM_PROMPT = (
+    "You are a real estate and business growth advisor speaking on a live phone call. "
+    "CRITICAL LANGUAGE RULE: Match the exact language of the caller's LATEST message on EVERY turn (Hindi, Gujarati, or English). "
+    "If the caller speaks English, reply in English. If Gujarati, reply in Gujarati. If Hindi, reply in Hindi. "
+    "Never repeat a question you already asked in the previous turn. "
+    "Keep every reply to 1 or 2 short conversational sentences with zero markdown, bullets, or emojis."
+)
+
+GREETING = "नमस्ते! मैं आपकी प्रॉपर्टी और बिज़नेस इंक्वायरी के सिलसिले में बात कर रही हूँ। बताइए, मैं आपकी क्या मदद कर सकती हूँ?"
+
+SENTENCE_END = re.compile(r"[.!?।॥]+[\s\"')\]]*|\n+")
+MIN_TTS_CHARS = 14
+SILENCE_THRESHOLD = int(os.getenv("SILENCE_THRESHOLD", "520"))
+BARGE_IN_RMS = int(os.getenv("BARGE_IN_RMS", "900"))
+BARGE_IN_MS = int(os.getenv("BARGE_IN_MS", "260"))
+END_OF_SPEECH_MS = int(os.getenv("END_OF_SPEECH_MS", "850"))
+MIN_SPEECH_MS = int(os.getenv("MIN_SPEECH_MS", "380"))
+MIN_AVG_RMS = int(os.getenv("MIN_AVG_RMS", "560"))
+
+FILLER_ONLY = {
+    "yes", "yeah", "yep", "ok", "okay", "sir", "ji", "haan", "ha", "hmm", "hm",
+    "hello", "halo", "right", "sure", "હા", "જી", "ઓકે", "સર", "हाँ", "जी", "ठीक है"
+}
+
+
+def is_filler_only(text: str) -> bool:
+    cleaned = re.sub(r"[^\w\s\u0900-\u097F\u0A80-\u0AFF]", "", text.lower()).strip()
+    if not cleaned:
+        return True
+    words = cleaned.split()
+    return len(words) <= 2 and all(w in FILLER_ONLY for w in words)
+
+
+def is_unclear_transcript(text: str, avg_rms: float, last_reply: str) -> bool:
+    cleaned = text.strip()
+    if not cleaned:
+        return True
+    if avg_rms < MIN_AVG_RMS and len(cleaned.split()) <= 2:
+        return True
+    letters = re.findall(r"[A-Za-z\u0900-\u097F\u0A80-\u0AFF]", cleaned)
+    if len(letters) < 2:
+        return True
+    return False
+
+
+def detect_language_code(text: str) -> str:
+    if re.search(r"[\u0A80-\u0AFF]", text):
+        return "gu-IN"
+    if re.search(r"[\u0900-\u097F]", text):
+        return "hi-IN"
+    if re.search(r"[A-Za-z]", text):
+        return "en-IN"
+    return "hi-IN"
+
+
+def pick_unclear_prompt(last_reply: str) -> str:
+    if re.search(r"[\u0A80-\u0AFF]", last_reply):
+        return "માફ કરશો, મને તમારો અવાજ સ્પષ્ટ સંભળાયો નથી, કૃપા કરીને ફરીથી બોલો."
+    if re.search(r"[\u0900-\u097F]", last_reply):
+        return "माफ़ कीजिएगा, मुझे आपकी आवाज़ साफ़ सुनाई नहीं दी, कृपया दोबारा बोलिए।"
+    if last_reply.strip():
+        return "Sorry, I couldn't hear you clearly, please say that again."
+    return "माफ़ कीजिएगा, मुझे आपकी आवाज़ साफ़ सुनाई नहीं दी, कृपया दोबारा बोलिए।"
+
+
+class CallSession:
+    def __init__(self, websocket: Any, registry: dict[str, "CallSession"] | None = None) -> None:
+        self.websocket = websocket
+        self.registry = registry
+        self.stream_id: str | None = None
+        self.call_uuid: str | None = None
+        self.started_at = time.monotonic()
+        self.detected_language = "hi-IN"
+        self.transcript_lines: list[str] = []
+        self._webhook_sent = False
+        self.input_sample_rate = 8000
+        self.input_encoding = "audio/x-mulaw"
+        self.client = VoicePipelineClient()
+        self.conversation = [{"role": "system", "content": SYSTEM_PROMPT}]
+        self._last_assistant_reply = ""
+        self._audio = bytearray()
+        self._rms_weighted_sum = 0.0
+        self._rms_total_ms = 0.0
+        self._speech_ms = 0.0
+        self._silence_ms = 0.0
+        self._barge_speech_ms = 0.0
+        self._speech_active = False
+        self._playback_active = False
+        self._playback_until = 0.0
+        self._generation = 0
+        self._tasks: set[asyncio.Task] = set()
+
+    async def handle_message(self, raw_message: str) -> None:
+        data = json.loads(raw_message)
+        event = data.get("event")
+        if event == "start":
+            await self._handle_start(data)
+        elif event == "media":
+            await self._handle_media(data)
+        elif event in {"playedStream", "clearedAudio"}:
+            self._playback_active = False
+            self._playback_until = 0.0
+
+    async def _handle_start(self, data: dict) -> None:
+        start = data.get("start") or {}
+        self.stream_id = data.get("streamId") or start.get("streamId")
+        self.call_uuid = (
+            data.get("callUuid")
+            or data.get("callId")
+            or start.get("callUuid")
+            or start.get("callId")
+            or self.call_uuid
+        )
+        if self.registry is not None and self.stream_id:
+            self.registry[self.stream_id] = self
+        media_format = start.get("mediaFormat") or {}
+        self.input_sample_rate = int(media_format.get("sampleRate", 8000))
+        self.input_encoding = str(media_format.get("encoding", "audio/x-mulaw"))
+        print(f"[WS] Call started stream_id={self.stream_id} call_uuid={self.call_uuid} rate={self.input_sample_rate} enc={self.input_encoding}")
+        self._spawn(self._speak(GREETING, self._generation, record_history=True))
+
+    async def _handle_media(self, data: dict) -> None:
+        media = data.get("media") or {}
+        payload = media.get("payload")
+        if not payload:
+            return
+        raw = base64.b64decode(payload)
+        pcm = audioop.ulaw2lin(raw, 2) if self.input_encoding == "audio/x-mulaw" else raw
+        chunk_ms = len(pcm) * 1000 / (self.input_sample_rate * SAMPLE_WIDTH_BYTES)
+        rms = audioop.rms(pcm, SAMPLE_WIDTH_BYTES)
+        now = time.monotonic()
+        agent_speaking = self._playback_active and now < self._playback_until
+
+        if agent_speaking:
+            if rms >= BARGE_IN_RMS:
+                self._barge_speech_ms += chunk_ms
+                if self._barge_speech_ms >= BARGE_IN_MS:
+                    self._generation += 1
+                    self._barge_speech_ms = 0.0
+                    await self._clear_audio()
+                    agent_speaking = False
+            else:
+                self._barge_speech_ms = 0.0
+                return
+
+        if rms >= SILENCE_THRESHOLD:
+            self._speech_active = True
+            self._speech_ms += chunk_ms
+            self._silence_ms = 0.0
+            self._audio.extend(pcm)
+            self._rms_weighted_sum += rms * chunk_ms
+            self._rms_total_ms += chunk_ms
+        elif self._speech_active:
+            self._silence_ms += chunk_ms
+            self._audio.extend(pcm)
+
+        if self._speech_active and self._silence_ms >= END_OF_SPEECH_MS:
+            utterance = bytes(self._audio)
+            speech_ms = self._speech_ms
+            avg_rms = (self._rms_weighted_sum / self._rms_total_ms) if self._rms_total_ms > 0 else 0.0
+            self._audio.clear()
+            self._rms_weighted_sum = 0.0
+            self._rms_total_ms = 0.0
+            self._speech_ms = self._silence_ms = 0.0
+            self._barge_speech_ms = 0.0
+            self._speech_active = False
+
+            gen = self._generation
+            if speech_ms < MIN_SPEECH_MS:
+                print(f"[TURN-UNCLEAR] Short/cut speech ({int(speech_ms)}ms, rms={int(avg_rms)})")
+                self._spawn(self._speak(pick_unclear_prompt(self._last_assistant_reply), gen, record_history=False))
+                return
+
+            self._spawn(self._process_utterance(utterance, avg_rms, gen))
+
+    async def _process_utterance(self, pcm_audio: bytes, avg_rms: float, gen: int) -> None:
+        t0 = time.perf_counter()
+        transcript = await self.client.transcribe(pcm_audio, self.input_sample_rate, AGENT_LANGUAGE)
+        if gen != self._generation:
+            return
+        t_stt = int((time.perf_counter() - t0) * 1000)
+
+        if is_unclear_transcript(transcript or "", avg_rms, self._last_assistant_reply):
+            print(f"[TURN-UNCLEAR] ({t_stt}ms STT, rms={int(avg_rms)}) raw={transcript!r}")
+            await self._speak(pick_unclear_prompt(self._last_assistant_reply), gen, record_history=False)
+            return
+
+        if is_filler_only(transcript):
+            print(f"[TURN-SKIP] Ignored short filler ({t_stt}ms STT): {transcript}")
+            return
+
+        print(f"[TURN] Caller ({t_stt}ms STT): {transcript}")
+        self.detected_language = detect_language_code(transcript)
+        self.transcript_lines.append(f"Lead: {transcript}")
+        self.conversation.append({"role": "user", "content": transcript})
+
+        pending = ""
+        full_reply = []
+        tts_tasks: list[asyncio.Task[bytes]] = []
+        first_logged = False
+
+        async def enqueue_tts(sentence: str) -> None:
+            nonlocal first_logged
+            full_reply.append(sentence)
+            if not first_logged:
+                print(f"[TURN] First sentence ready in {int((time.perf_counter() - t0) * 1000)}ms: {sentence}")
+                first_logged = True
+            tts_tasks.append(asyncio.create_task(
+                self.client.synthesize(sentence, AGENT_LANGUAGE, TTS_SPEAKER, OUTBOUND_SAMPLE_RATE)
+            ))
+
+        async for delta in self.client.stream_reply(self.conversation):
+            if gen != self._generation:
+                break
+            pending += delta
+            match = SENTENCE_END.search(pending)
+            if match and match.end() >= MIN_TTS_CHARS:
+                sentence = pending[:match.end()].strip()
+                pending = pending[match.end():]
+                if sentence:
+                    await enqueue_tts(sentence)
+
+        if gen == self._generation and pending.strip():
+            await enqueue_tts(pending.strip())
+
+        for task in tts_tasks:
+            if gen != self._generation:
+                task.cancel()
+                continue
+            try:
+                pcm = await task
+            except asyncio.CancelledError:
+                continue
+            if gen == self._generation:
+                await self._play(pcm, gen)
+
+        if full_reply:
+            joined = " ".join(full_reply)
+            self._last_assistant_reply = joined
+            self.transcript_lines.append(f"AI Agent: {joined}")
+            self.conversation.append({"role": "assistant", "content": joined})
+
+    async def _speak(self, text: str, gen: int, record_history: bool = False) -> None:
+        pcm = await self.client.synthesize(text, AGENT_LANGUAGE, TTS_SPEAKER, OUTBOUND_SAMPLE_RATE)
+        if gen == self._generation:
+            if record_history:
+                self._last_assistant_reply = text
+                self.transcript_lines.append(f"AI Agent: {text}")
+                self.conversation.append({"role": "assistant", "content": text})
+            await self._play(pcm, gen)
+
+    async def _play(self, pcm_audio: bytes, gen: int) -> None:
+        chunk_size = OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES * 20 // 1000
+        duration_sec = len(pcm_audio) / (OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES)
+        self._playback_active = True
+        self._playback_until = max(self._playback_until, time.monotonic()) + duration_sec
+        for offset in range(0, len(pcm_audio), chunk_size):
+            if gen != self._generation or not self._playback_active:
+                break
+            await self.websocket.send_text(json.dumps({
+                "event": "playAudio",
+                "streamId": self.stream_id,
+                "media": {
+                    "contentType": "audio/x-l16",
+                    "sampleRate": OUTBOUND_SAMPLE_RATE,
+                    "payload": base64.b64encode(pcm_audio[offset:offset + chunk_size]).decode(),
+                },
+            }))
+        if gen == self._generation:
+            await self.websocket.send_text(json.dumps({"event": "checkpoint", "streamId": self.stream_id, "name": "tts"}))
+
+    async def _clear_audio(self) -> None:
+        await self.websocket.send_text(json.dumps({"event": "clearAudio", "streamId": self.stream_id}))
+        self._playback_active = False
+        self._playback_until = 0.0
+
+    def _spawn(self, coroutine) -> None:
+        task = asyncio.create_task(coroutine)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    def build_webhook_payload(self, call_status: str = "completed", duration_seconds: int | None = None) -> dict[str, Any]:
+        dur = duration_seconds if duration_seconds is not None else max(1, int(round(time.monotonic() - self.started_at)))
+        full_transcript = "\n".join(self.transcript_lines).strip()
+        payload: dict[str, Any] = {
+            "provider": "vobiz",
+            "call_status": call_status,
+            "duration_seconds": dur,
+            "transcript": full_transcript,
+            "full_transcript": full_transcript,
+            "language": self.detected_language,
+        }
+        if self.call_uuid:
+            payload["provider_call_id"] = self.call_uuid
+            payload["CallUUID"] = self.call_uuid
+        return payload
+
+    async def flush_to_crm(self, call_status: str = "completed", duration_seconds: int | None = None) -> None:
+        if self._webhook_sent or not CRM_WEBHOOK_URL or not self.call_uuid:
+            return
+        self._webhook_sent = True
+        payload = self.build_webhook_payload(call_status=call_status, duration_seconds=duration_seconds)
+        try:
+            async with httpx.AsyncClient(timeout=12.0) as http:
+                resp = await http.post(CRM_WEBHOOK_URL, json=payload)
+                print(f"[CRM-WEBHOOK] call_uuid={self.call_uuid} status={resp.status_code} body={resp.text[:200]}")
+        except Exception as exc:
+            print(f"[CRM-WEBHOOK-ERR] call_uuid={self.call_uuid} err={exc}")
+
+    async def close(self) -> None:
+        self._generation += 1
+        for task in list(self._tasks):
+            task.cancel()
+        await self.flush_to_crm(call_status="completed")
+        if self.registry is not None and self.stream_id:
+            self.registry.pop(self.stream_id, None)
+        await self.client.aclose()
