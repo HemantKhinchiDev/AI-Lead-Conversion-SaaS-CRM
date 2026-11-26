@@ -219,40 +219,40 @@ async function transcribeRecordingUrl(
     authId && authToken ? { "X-Auth-ID": authId, "X-Auth-Token": authToken } : {};
 
   try {
-    let audioRes = await fetch(recordUrl, { signal: AbortSignal.timeout(1200) });
-    if (!audioRes.ok && Object.keys(vobizHeaders).length > 0) {
-      audioRes = await fetch(recordUrl, {
-        headers: vobizHeaders,
-        signal: AbortSignal.timeout(1200),
-      });
-    }
-    if (!audioRes.ok) {
-      return "";
-    }
-    const arrayBuffer = await audioRes.arrayBuffer();
-    if (!arrayBuffer.byteLength) {
-      return "";
-    }
-    const rawCt = audioRes.headers.get("content-type") || "audio/mpeg";
-    const contentType = rawCt.startsWith("audio/") ? rawCt : "audio/mpeg";
-    const ext = contentType.includes("wav") ? "wav" : "mp3";
-    const form = new FormData();
-    form.append("file", new Blob([arrayBuffer], { type: contentType }), `caller.${ext}`);
-    form.append("model", "whisper-large-v3-turbo");
-    if (language === "hi-IN") {
-      form.append("language", "hi");
-    } else if (language === "gu-IN") {
-      form.append("language", "gu");
-    } else if (language === "en-IN") {
-      form.append("language", "en");
-    }
-    form.append("response_format", "json");
+    let audioRes = await fetch(recordUrl, { signal: AbortSignal.timeout(3500) });
+        if (!audioRes.ok && Object.keys(vobizHeaders).length > 0) {
+          audioRes = await fetch(recordUrl, {
+            headers: vobizHeaders,
+            signal: AbortSignal.timeout(3500),
+          });
+        }
+        if (!audioRes.ok) {
+          return "";
+        }
+        const arrayBuffer = await audioRes.arrayBuffer();
+        if (!arrayBuffer.byteLength) {
+          return "";
+        }
+        const rawCt = audioRes.headers.get("content-type") || "audio/mpeg";
+        const contentType = rawCt.startsWith("audio/") ? rawCt : "audio/mpeg";
+        const ext = contentType.includes("wav") ? "wav" : "mp3";
+        const form = new FormData();
+        form.append("file", new Blob([arrayBuffer], { type: contentType }), `caller.${ext}`);
+        form.append("model", "whisper-large-v3-turbo");
+        if (language === "hi-IN") {
+          form.append("language", "hi");
+        } else if (language === "gu-IN") {
+          form.append("language", "gu");
+        } else if (language === "en-IN") {
+          form.append("language", "en");
+        }
+        form.append("response_format", "json");
 
-    const sttRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
-      signal: AbortSignal.timeout(1200),
+        const sttRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}` },
+          body: form,
+          signal: AbortSignal.timeout(4500),
     });
     if (!sttRes.ok) {
       return "";
@@ -448,7 +448,7 @@ function buildVobizXml(input: VobizXmlInput): string {
   }
 
   const audio = input.audioUrl ? `<Play>${escapeXml(input.audioUrl)}</Play>` : speak;
-  const record = `<Record action="${escapeXml(input.actionUrl)}" method="POST" maxLength="10" timeout="1" retries="0" playBeep="false" finishOnKey="#"/>`;
+  const record = `<Record action="${escapeXml(input.actionUrl)}" method="POST" maxLength="8" timeout="3" retries="0" playBeep="false" finishOnKey="#"/>`;
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${record}</Response>`;
 }
 
@@ -595,7 +595,7 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
           : "Hello, I’m calling from Hemant’s team. We build high-converting websites, AI voice assistants, and smart automation systems that handle your customer calls and leads 24/7. Would you like to grow your business with our help?"
         : voiceGender === "male"
         ? "नमस्ते, मैं हेमंत बोल रहा हूँ। मैं बिज़नेसेज़ के लिए हाई-कन्वर्टिंग वेबसाइट्स, एआई वॉइस असिस्टेंट और स्मार्ट ऑटोमेशन सिस्टम बनाता हूँ, जो आपकी कस्टमर कॉल्स और लीड्स को चौबीस घंटे हैंडल करते हैं। क्या आप हमारी हेल्प से अपने बिज़नेस को ग्रो करना चाहते हैं?"
-        : "नमस्ते, मैं हेमंत की टीम से बोल रही हूँ। हम बिज़नेसेज़ के लिए हाई-कन्वर्टिंग वेबसाइट्स, एआई वॉइस असिस्टेंट और स्मार्ट ऑटोमेशन सिस्टम बनाते हैं, जो आपकी कस्टमर कॉल्स और लीड्स को चौबीस घंटे हैंडल करते हैं। क्या आप हमारी हेल्प से अपने बिज़नेस को ग्रो करना चाहते हैं?";
+        : "नमस्ते, मैं हेमंत की टीम से बोल रही हूँ। हम आपके बिज़नेस की कॉल्स और लीड्स के लिए एआई वॉइस असिस्टेंट बनाते हैं। क्या आप इस बारे में जानना चाहेंगे?";
     reply =
       customOpeningScript ||
       readText(context?.knowledgeBase?.opening_script, 600) ||
@@ -629,7 +629,10 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
 
       void dbPromise;
       const tts = await ttsPromise;
-  const audioUrl = tts.audioBase64 ? cacheAudio(tts.audioBase64, baseUrl) : undefined;
+  const rawAudioUrl = tts.audioBase64 ? cacheAudio(tts.audioBase64, baseUrl) : undefined;
+      const audioUrl = rawAudioUrl
+        ? `${rawAudioUrl}&t=${encodeURIComponent(reply.slice(0, 450))}&l=${encodeURIComponent(language)}&g=${encodeURIComponent(voiceGender)}`
+        : undefined;
 
   const params = new URLSearchParams();
   if (context) {
