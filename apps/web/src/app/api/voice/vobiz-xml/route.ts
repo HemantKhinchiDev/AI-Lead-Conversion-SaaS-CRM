@@ -53,7 +53,7 @@ type VobizXmlInput = {
   end?: boolean;
 };
 
-const audioCache = new Map<string, { audioBase64: string; expiresAt: number }>();
+const audioCache = new Map<string, { bytes: Uint8Array; expiresAt: number }>();
 
 function isDict(value: unknown): value is Dict {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -471,8 +471,8 @@ async function audioResponse(audioId: string): Promise<NextResponse | null> {
     audioCache.delete(audioId);
     return null;
   }
-  const bytes = Uint8Array.from(Buffer.from(entry.audioBase64, "base64"));
-  return new NextResponse(bytes, {
+  const bytes = entry.bytes;
+  return new NextResponse(bytes as unknown as BodyInit, {
     status: 200,
     headers: {
       "Content-Type": "audio/mpeg",
@@ -489,7 +489,7 @@ function cacheAudio(audioBase64: string, baseUrl: string): string {
     }
   }
   const audioId = randomUUID();
-  audioCache.set(audioId, { audioBase64, expiresAt: Date.now() + AUDIO_TTL_MS });
+  audioCache.set(audioId, { bytes: Uint8Array.from(Buffer.from(audioBase64, "base64")), expiresAt: Date.now() + AUDIO_TTL_MS });
   return `${baseUrl}/api/voice/vobiz-xml?audio=${encodeURIComponent(audioId)}`;
 }
 
