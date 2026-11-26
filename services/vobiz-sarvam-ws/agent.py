@@ -15,15 +15,18 @@ AGENT_LANGUAGE = os.getenv("AGENT_LANGUAGE", "unknown")
 TTS_SPEAKER = os.getenv("TTS_SPEAKER", "simran_hi_conversation")
 CRM_WEBHOOK_URL = os.getenv("CRM_WEBHOOK_URL", "").strip()
 
-SYSTEM_PROMPT = (
-    "You are a real estate and business growth advisor speaking on a live phone call. "
+DEFAULT_SYSTEM_PROMPT = (
+    "You are a helpful, friendly AI business assistant speaking on a live phone call. "
+    "Adapt naturally to whatever business, service, or inquiry the caller mentions without assuming a specific industry. "
     "CRITICAL LANGUAGE RULE: Match the exact language of the caller's LATEST message on EVERY turn (Hindi, Gujarati, or English). "
     "If the caller speaks English, reply strictly in English. If Gujarati, reply strictly in Gujarati. If Hindi, reply strictly in Hindi. "
     "Never repeat a question you already asked in the previous turn. "
     "Keep every reply to 1 or 2 short conversational sentences with zero markdown, bullets, or emojis."
 )
+SYSTEM_PROMPT = os.getenv("AGENT_SYSTEM_PROMPT", "").strip() or DEFAULT_SYSTEM_PROMPT
 
-GREETING = "नमस्ते! मैं आपकी प्रॉपर्टी और बिज़नेस इंक्वायरी के सिलसिले में बात कर रही हूँ। बताइए, मैं आपकी क्या मदद कर सकती हूँ?"
+DEFAULT_GREETING = "नमस्ते! मैं आपकी बिज़नेस इंक्वायरी के सिलसिले में बात कर रही हूँ। बताइए, आज मैं आपकी क्या मदद कर सकती हूँ?"
+GREETING = os.getenv("AGENT_GREETING", "").strip() or DEFAULT_GREETING
 
 SENTENCE_END = re.compile(r"[.!?।॥]+[\s\"')\]]*|\n+")
 MIN_TTS_CHARS = 14
