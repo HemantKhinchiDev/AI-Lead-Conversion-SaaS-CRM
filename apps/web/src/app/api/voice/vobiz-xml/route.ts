@@ -182,7 +182,8 @@ async function resolveLatestVobizRecordingUrl(callUuid: string): Promise<string>
   const endpoint = `https://api.vobiz.ai/api/v1/Account/${encodeURIComponent(
     authId
   )}/Recording/?call_uuid=${encodeURIComponent(callUuid)}&limit=1`;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 450));
     try {
       const res = await fetch(endpoint, {
         headers: { "X-Auth-ID": authId, "X-Auth-Token": authToken },
