@@ -480,6 +480,9 @@ async function callGroq(
   const system = [
     "You are a multilingual AI phone agent for a business.",
     "Always answer in the requested language only.",
+    "When language is hi-IN (Hindi), write strictly in pure Devanagari Hindi script only—never use Roman Hinglish or English script.",
+    "When language is gu-IN (Gujarati), write strictly in Gujarati script only.",
+    "When language is en-IN (English), write in clear natural English only.",
     "Use ONLY the supplied business knowledge base.",
     "Never invent prices, availability, appointments, guarantees, or contact details.",
     "If a fact is missing, say the team will confirm the details instead of guessing.",
