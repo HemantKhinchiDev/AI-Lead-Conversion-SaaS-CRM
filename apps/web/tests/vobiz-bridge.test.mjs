@@ -132,7 +132,7 @@ test("vobiz xml endpoint returns escaped, bounded VobizXML with TTS and input co
   assert.match(route, /<Speak voice="\$\{speakVoice\}">/);
   assert.match(route, /<Record action=/);
     assert.match(route, /<Record action=/);
-  assert.match(route, /maxLength="8" timeout="3" retries="0" playBeep="false"/);
+  assert.match(route, /maxLength="10" timeout="1" retries="0" playBeep="false"/);
   assert.match(route, /finishOnKey="#"/);
   assert.match(route, /<Hangup\/>/);
   assert.match(route, /function escapeXml/);
@@ -164,7 +164,7 @@ test("vobiz xml endpoint emits gendered Speak voice and matching GetDigits tags"
   );
   assert.equal((xml.match(/<Record /g) ?? []).length, 1);
   assert.ok(xml.includes('action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2"'));
-  assert.ok(xml.includes('<Record action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2" method="POST" maxLength="8" timeout="3" retries="0" playBeep="false" finishOnKey="#"/>'));
+  assert.ok(xml.includes('<Record action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2" method="POST" maxLength="10" timeout="1" retries="0" playBeep="false" finishOnKey="#"/>'));
   assert.ok(xml.includes("<Play>https://example.test/audio/greeting.mp3</Play>"));
   const escaped = buildVobizXml({ text: 'Namaste <lead> & "friends"', end: true });
   assert.ok(escaped.includes("Namaste &lt;lead&gt; &amp; &quot;friends&quot;"));
@@ -479,10 +479,10 @@ test("buildVobizXml escapes input, plays cached TTS audio and bounds the convers
   assert.ok(prompt.includes('<Play>https://example.test/audio/greeting.mp3</Play>'));
   assert.ok(
     prompt.includes(
-      '<Record action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2" method="POST" maxLength="8" timeout="3" retries="0" playBeep="false" finishOnKey="#"/>'
+      '<Record action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2" method="POST" maxLength="10" timeout="1" retries="0" playBeep="false" finishOnKey="#"/>'
     )
   );
-  assert.ok(prompt.includes('<Record action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2" method="POST" maxLength="8" timeout="3" retries="0" playBeep="false" finishOnKey="#"/>'));
+  assert.ok(prompt.includes('<Record action="https://example.test/api/voice/vobiz-xml?call=1&amp;turn=2" method="POST" maxLength="10" timeout="1" retries="0" playBeep="false" finishOnKey="#"/>'));
   assert.ok(!prompt.includes("<private>"));
   assert.ok(!prompt.includes("<GetInput"));
 

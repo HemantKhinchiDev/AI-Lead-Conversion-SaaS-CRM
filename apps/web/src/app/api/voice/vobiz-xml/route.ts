@@ -53,7 +53,7 @@ type VobizXmlInput = {
   end?: boolean;
 };
 
-const audioCache = new Map<string, { bytes: Uint8Array; expiresAt: number }>();
+const audioCache = new Map<string, { audioBase64: string; expiresAt: number }>();
 
 function isDict(value: unknown): value is Dict {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -182,12 +182,11 @@ async function resolveLatestVobizRecordingUrl(callUuid: string): Promise<string>
   const endpoint = `https://api.vobiz.ai/api/v1/Account/${encodeURIComponent(
     authId
   )}/Recording/?call_uuid=${encodeURIComponent(callUuid)}&limit=1`;
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-        if (attempt > 0) await new Promise((r) => setTimeout(r, 600));
+  for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const res = await fetch(endpoint, {
         headers: { "X-Auth-ID": authId, "X-Auth-Token": authToken },
-        signal: AbortSignal.timeout(1500),
+        signal: AbortSignal.timeout(1200),
       });
       if (res.ok) {
         const json = (await res.json()) as {
@@ -220,62 +219,46 @@ async function transcribeRecordingUrl(
     authId && authToken ? { "X-Auth-ID": authId, "X-Auth-Token": authToken } : {};
 
   try {
-    let audioRes = await fetch(recordUrl, { signal: AbortSignal.timeout(3500) });
-        if (!audioRes.ok && Object.keys(vobizHeaders).length > 0) {
-          audioRes = await fetch(recordUrl, {
-            headers: vobizHeaders,
-            signal: AbortSignal.timeout(3500),
-          });
-        }
-        if (!audioRes.ok) {
-          return "";
-        }
-        const arrayBuffer = await audioRes.arrayBuffer();
-        if (!arrayBuffer.byteLength) {
-          return "";
-        }
-        const rawCt = audioRes.headers.get("content-type") || "audio/mpeg";
-        const contentType = rawCt.startsWith("audio/") ? rawCt : "audio/mpeg";
-        const ext = contentType.includes("wav") ? "wav" : "mp3";
-        const form = new FormData();
-        form.append("file", new Blob([arrayBuffer], { type: contentType }), `caller.${ext}`);
-        form.append("model", "whisper-large-v3-turbo");
-        if (language === "hi-IN") {
-          form.append("language", "hi");
-        } else if (language === "gu-IN") {
-          form.append("language", "gu");
-        } else if (language === "en-IN") {
-          form.append("language", "en");
-        }
-        form.append("response_format", "json");
+    let audioRes = await fetch(recordUrl, { signal: AbortSignal.timeout(1200) });
+    if (!audioRes.ok && Object.keys(vobizHeaders).length > 0) {
+      audioRes = await fetch(recordUrl, {
+        headers: vobizHeaders,
+        signal: AbortSignal.timeout(1200),
+      });
+    }
+    if (!audioRes.ok) {
+      return "";
+    }
+    const arrayBuffer = await audioRes.arrayBuffer();
+    if (!arrayBuffer.byteLength) {
+      return "";
+    }
+    const rawCt = audioRes.headers.get("content-type") || "audio/mpeg";
+    const contentType = rawCt.startsWith("audio/") ? rawCt : "audio/mpeg";
+    const ext = contentType.includes("wav") ? "wav" : "mp3";
+    const form = new FormData();
+    form.append("file", new Blob([arrayBuffer], { type: contentType }), `caller.${ext}`);
+    form.append("model", "whisper-large-v3-turbo");
+    if (language === "hi-IN") {
+      form.append("language", "hi");
+    } else if (language === "gu-IN") {
+      form.append("language", "gu");
+    } else if (language === "en-IN") {
+      form.append("language", "en");
+    }
+    form.append("response_format", "json");
 
-        const sttRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}` },
-          body: form,
-          signal: AbortSignal.timeout(4500),
+    const sttRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+      signal: AbortSignal.timeout(1200),
     });
     if (!sttRes.ok) {
       return "";
     }
     const data = (await sttRes.json()) as { text?: unknown };
-    const primaryText = readText(data?.text, 1000);
-    if (primaryText || !autoDetectLanguage) {
-      return primaryText;
-    }
-    const fallbackForm = new FormData();
-    fallbackForm.append("file", new Blob([arrayBuffer], { type: contentType }), `caller.${ext}`);
-    fallbackForm.append("model", "whisper-large-v3-turbo");
-    fallbackForm.append("response_format", "json");
-    const retryRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: fallbackForm,
-      signal: AbortSignal.timeout(4500),
-    });
-    if (!retryRes.ok) return "";
-    const retryData = (await retryRes.json()) as { text?: unknown };
-    return readText(retryData?.text, 1000);
+    return readText(data?.text, 1000);
   } catch {
     return "";
   }
@@ -465,7 +448,7 @@ function buildVobizXml(input: VobizXmlInput): string {
   }
 
   const audio = input.audioUrl ? `<Play>${escapeXml(input.audioUrl)}</Play>` : speak;
-  const record = `<Record action="${escapeXml(input.actionUrl)}" method="POST" maxLength="8" timeout="3" retries="0" playBeep="false" finishOnKey="#"/>`;
+  const record = `<Record action="${escapeXml(input.actionUrl)}" method="POST" maxLength="10" timeout="1" retries="0" playBeep="false" finishOnKey="#"/>`;
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${audio}${record}</Response>`;
 }
 
@@ -488,8 +471,8 @@ async function audioResponse(audioId: string): Promise<NextResponse | null> {
     audioCache.delete(audioId);
     return null;
   }
-  const bytes = entry.bytes;
-  return new NextResponse(bytes as unknown as BodyInit, {
+  const bytes = Uint8Array.from(Buffer.from(entry.audioBase64, "base64"));
+  return new NextResponse(bytes, {
     status: 200,
     headers: {
       "Content-Type": "audio/mpeg",
@@ -506,7 +489,7 @@ function cacheAudio(audioBase64: string, baseUrl: string): string {
     }
   }
   const audioId = randomUUID();
-  audioCache.set(audioId, { bytes: Uint8Array.from(Buffer.from(audioBase64, "base64")), expiresAt: Date.now() + AUDIO_TTL_MS });
+  audioCache.set(audioId, { audioBase64, expiresAt: Date.now() + AUDIO_TTL_MS });
   return `${baseUrl}/api/voice/vobiz-xml?audio=${encodeURIComponent(audioId)}`;
 }
 
@@ -526,7 +509,7 @@ function closingReply(language: VoiceLanguage, customScript?: string): string {
 
 function retryReply(language: VoiceLanguage): string {
   if (language === "hi-IN") {
-    return "क्षमा कीजिए, मैं आपकी बात स्पष्ट रूप से सुन नहीं पाया। कृपया फिर से बोलें, या कॉल समाप्त करने के लिए नौ दबाएँ।";
+    return "माफ़ कीजिए, मैं आपकी बात नहीं समझ पाया। कृपया दोबारा बोलें या समाप्त करने के लिए 9 दबाएँ।";
   }
   if (language === "gu-IN") {
     return "માફ કરશો, હું તમને સમજી શક્યો નહીં. કૃપા કરીને ફરીથી બોલો અથવા સમાપ્ત કરવા 9 દબાવો.";
@@ -612,7 +595,7 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
           : "Hello, I’m calling from Hemant’s team. We build high-converting websites, AI voice assistants, and smart automation systems that handle your customer calls and leads 24/7. Would you like to grow your business with our help?"
         : voiceGender === "male"
         ? "नमस्ते, मैं हेमंत बोल रहा हूँ। मैं बिज़नेसेज़ के लिए हाई-कन्वर्टिंग वेबसाइट्स, एआई वॉइस असिस्टेंट और स्मार्ट ऑटोमेशन सिस्टम बनाता हूँ, जो आपकी कस्टमर कॉल्स और लीड्स को चौबीस घंटे हैंडल करते हैं। क्या आप हमारी हेल्प से अपने बिज़नेस को ग्रो करना चाहते हैं?"
-        : "नमस्ते, मैं हेमंत की टीम से बोल रही हूँ। हम आपके व्यापार के लिए ग्राहकों की कॉल और पूछताछ संभालने वाली स्वचालित प्रणाली बनाते हैं। क्या आप इसके बारे में जानना चाहेंगे?";
+        : "नमस्ते, मैं हेमंत की टीम से बोल रही हूँ। हम बिज़नेसेज़ के लिए हाई-कन्वर्टिंग वेबसाइट्स, एआई वॉइस असिस्टेंट और स्मार्ट ऑटोमेशन सिस्टम बनाते हैं, जो आपकी कस्टमर कॉल्स और लीड्स को चौबीस घंटे हैंडल करते हैं। क्या आप हमारी हेल्प से अपने बिज़नेस को ग्रो करना चाहते हैं?";
     reply =
       customOpeningScript ||
       readText(context?.knowledgeBase?.opening_script, 600) ||
@@ -646,10 +629,7 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
 
       void dbPromise;
       const tts = await ttsPromise;
-  const rawAudioUrl = tts.audioBase64 ? cacheAudio(tts.audioBase64, baseUrl) : undefined;
-      const audioUrl = rawAudioUrl
-        ? `${rawAudioUrl}&t=${encodeURIComponent(reply.slice(0, 450))}&l=${encodeURIComponent(language)}&g=${encodeURIComponent(voiceGender)}`
-        : undefined;
+  const audioUrl = tts.audioBase64 ? cacheAudio(tts.audioBase64, baseUrl) : undefined;
 
   const params = new URLSearchParams();
   if (context) {
@@ -681,25 +661,7 @@ export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const audioId = readText(url.searchParams.get("audio"), 80);
   if (audioId) {
-    const cached = await audioResponse(audioId);
-    if (cached) return cached;
-    const ttsText = readText(url.searchParams.get("t"), 500);
-    if (ttsText) {
-      const ttsLang = normalizeStartingLanguage(url.searchParams.get("l") || "hi-IN");
-      const ttsGen = normalizeVoiceGender(url.searchParams.get("g") || "female");
-      const fresh = await synthesizeSpeech(ttsText, ttsLang, { gender: ttsGen });
-      if (fresh.audioBase64) {
-        const bytes = Uint8Array.from(Buffer.from(fresh.audioBase64, "base64"));
-        return new NextResponse(bytes as unknown as BodyInit, {
-          status: 200,
-          headers: {
-            "Content-Type": "audio/mpeg",
-            "Cache-Control": "private, max-age=300",
-          },
-        });
-      }
-    }
-    return new NextResponse("Audio not found", { status: 404 });
+    return (await audioResponse(audioId)) ?? new NextResponse("Audio not found", { status: 404 });
   }
   return handleAnswer(request, {}, url);
 }
@@ -709,25 +671,7 @@ export async function POST(request: Request): Promise<Response> {
   const payload = await readPayload(request);
   const audioId = readText(url.searchParams.get("audio"), 80);
   if (audioId) {
-    const cached = await audioResponse(audioId);
-    if (cached) return cached;
-    const ttsText = readText(url.searchParams.get("t"), 500);
-    if (ttsText) {
-      const ttsLang = normalizeStartingLanguage(url.searchParams.get("l") || "hi-IN");
-      const ttsGen = normalizeVoiceGender(url.searchParams.get("g") || "female");
-      const fresh = await synthesizeSpeech(ttsText, ttsLang, { gender: ttsGen });
-      if (fresh.audioBase64) {
-        const bytes = Uint8Array.from(Buffer.from(fresh.audioBase64, "base64"));
-        return new NextResponse(bytes as unknown as BodyInit, {
-          status: 200,
-          headers: {
-            "Content-Type": "audio/mpeg",
-            "Cache-Control": "private, max-age=300",
-          },
-        });
-      }
-    }
-    return new NextResponse("Audio not found", { status: 404 });
+    return (await audioResponse(audioId)) ?? new NextResponse("Audio not found", { status: 404 });
   }
   return handleAnswer(request, payload, url);
 }
