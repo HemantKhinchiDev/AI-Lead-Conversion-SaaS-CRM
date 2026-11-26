@@ -665,7 +665,25 @@ export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const audioId = readText(url.searchParams.get("audio"), 80);
   if (audioId) {
-    return (await audioResponse(audioId)) ?? new NextResponse("Audio not found", { status: 404 });
+    const cached = await audioResponse(audioId);
+    if (cached) return cached;
+    const ttsText = readText(url.searchParams.get("t"), 500);
+    if (ttsText) {
+      const ttsLang = normalizeStartingLanguage(url.searchParams.get("l") || "hi-IN");
+      const ttsGen = normalizeVoiceGender(url.searchParams.get("g") || "female");
+      const fresh = await synthesizeSpeech(ttsText, ttsLang, { gender: ttsGen });
+      if (fresh.audioBase64) {
+        const bytes = Uint8Array.from(Buffer.from(fresh.audioBase64, "base64"));
+        return new NextResponse(bytes as unknown as BodyInit, {
+          status: 200,
+          headers: {
+            "Content-Type": "audio/mpeg",
+            "Cache-Control": "private, max-age=300",
+          },
+        });
+      }
+    }
+    return new NextResponse("Audio not found", { status: 404 });
   }
   return handleAnswer(request, {}, url);
 }
@@ -675,7 +693,25 @@ export async function POST(request: Request): Promise<Response> {
   const payload = await readPayload(request);
   const audioId = readText(url.searchParams.get("audio"), 80);
   if (audioId) {
-    return (await audioResponse(audioId)) ?? new NextResponse("Audio not found", { status: 404 });
+    const cached = await audioResponse(audioId);
+    if (cached) return cached;
+    const ttsText = readText(url.searchParams.get("t"), 500);
+    if (ttsText) {
+      const ttsLang = normalizeStartingLanguage(url.searchParams.get("l") || "hi-IN");
+      const ttsGen = normalizeVoiceGender(url.searchParams.get("g") || "female");
+      const fresh = await synthesizeSpeech(ttsText, ttsLang, { gender: ttsGen });
+      if (fresh.audioBase64) {
+        const bytes = Uint8Array.from(Buffer.from(fresh.audioBase64, "base64"));
+        return new NextResponse(bytes as unknown as BodyInit, {
+          status: 200,
+          headers: {
+            "Content-Type": "audio/mpeg",
+            "Cache-Control": "private, max-age=300",
+          },
+        });
+      }
+    }
+    return new NextResponse("Audio not found", { status: 404 });
   }
   return handleAnswer(request, payload, url);
 }
