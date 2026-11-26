@@ -18,7 +18,7 @@ CRM_WEBHOOK_URL = os.getenv("CRM_WEBHOOK_URL", "").strip()
 SYSTEM_PROMPT = (
     "You are a real estate and business growth advisor speaking on a live phone call. "
     "CRITICAL LANGUAGE RULE: Match the exact language of the caller's LATEST message on EVERY turn (Hindi, Gujarati, or English). "
-    "If the caller speaks English, reply in English. If Gujarati, reply in Gujarati. If Hindi, reply in Hindi. "
+    "If the caller speaks English, reply strictly in English. If Gujarati, reply strictly in Gujarati. If Hindi, reply strictly in Hindi. "
     "Never repeat a question you already asked in the previous turn. "
     "Keep every reply to 1 or 2 short conversational sentences with zero markdown, bullets, or emojis."
 )
@@ -27,12 +27,14 @@ GREETING = "नमस्ते! मैं आपकी प्रॉपर्ट�
 
 SENTENCE_END = re.compile(r"[.!?।॥]+[\s\"')\]]*|\n+")
 MIN_TTS_CHARS = 14
-SILENCE_THRESHOLD = int(os.getenv("SILENCE_THRESHOLD", "520"))
-BARGE_IN_RMS = int(os.getenv("BARGE_IN_RMS", "900"))
-BARGE_IN_MS = int(os.getenv("BARGE_IN_MS", "260"))
-END_OF_SPEECH_MS = int(os.getenv("END_OF_SPEECH_MS", "850"))
-MIN_SPEECH_MS = int(os.getenv("MIN_SPEECH_MS", "380"))
-MIN_AVG_RMS = int(os.getenv("MIN_AVG_RMS", "560"))
+SILENCE_THRESHOLD = int(os.getenv("SILENCE_THRESHOLD", "650"))
+BARGE_IN_RMS = int(os.getenv("BARGE_IN_RMS", "1100"))
+BARGE_IN_MS = int(os.getenv("BARGE_IN_MS", "300"))
+END_OF_SPEECH_MS = int(os.getenv("END_OF_SPEECH_MS", "900"))
+NOISE_IGNORE_MS = int(os.getenv("NOISE_IGNORE_MS", "280"))
+MIN_SPEECH_MS = int(os.getenv("MIN_SPEECH_MS", "420"))
+MIN_AVG_RMS = int(os.getenv("MIN_AVG_RMS", "620"))
+POST_PLAYBACK_GUARD_SEC = float(os.getenv("POST_PLAYBACK_GUARD_SEC", "0.35"))
 
 FILLER_ONLY = {
     "yes", "yeah", "yep", "ok", "okay", "sir", "ji", "haan", "ha", "hmm", "hm",
@@ -48,14 +50,15 @@ def is_filler_only(text: str) -> bool:
     return len(words) <= 2 and all(w in FILLER_ONLY for w in words)
 
 
-def is_unclear_transcript(text: str, avg_rms: float, last_reply: str) -> bool:
+def is_unclear_transcript(text: str, avg_rms: float) -> bool:
     cleaned = text.strip()
     if not cleaned:
         return True
     if avg_rms < MIN_AVG_RMS and len(cleaned.split()) <= 2:
         return True
-    letters = re.findall(r"[A-Za-z\u0900-\u097F\u0A80-\u0AFF]", cleaned)
-    if len(letters) < 2:
+    # Reject non-Indian/Arabic garbage hallucinations like 'آپ آپ آپ'
+    valid_chars = re.findall(r"[A-Za-z\u0900-\u097F\u0A80-\u0AFF]", cleaned)
+    if len(valid_chars) < 2:
         return True
     return False
 
@@ -68,6 +71,14 @@ def detect_language_code(text: str) -> str:
     if re.search(r"[A-Za-z]", text):
         return "en-IN"
     return "hi-IN"
+
+
+def language_directive(lang_code: str) -> str:
+    if lang_code == "en-IN":
+        return "Reply ONLY in English."
+    if lang_code == "gu-IN":
+        return "Reply ONLY in Gujarati script."
+    return "Reply ONLY in Hindi (Devanagari script)."
 
 
 def pick_unclear_prompt(last_reply: str) -> str:
@@ -116,7 +127,7 @@ class CallSession:
             await self._handle_media(data)
         elif event in {"playedStream", "clearedAudio"}:
             self._playback_active = False
-            self._playback_until = 0.0
+            self._playback_until = time.monotonic() + POST_PLAYBACK_GUARD_SEC
 
     async def _handle_start(self, data: dict) -> None:
         start = data.get("start") or {}
@@ -146,7 +157,7 @@ class CallSession:
         chunk_ms = len(pcm) * 1000 / (self.input_sample_rate * SAMPLE_WIDTH_BYTES)
         rms = audioop.rms(pcm, SAMPLE_WIDTH_BYTES)
         now = time.monotonic()
-        agent_speaking = self._playback_active and now < self._playback_until
+        agent_speaking = (self._playback_active and now < self._playback_until) or (now < self._playback_until)
 
         if agent_speaking:
             if rms >= BARGE_IN_RMS:
@@ -155,7 +166,6 @@ class CallSession:
                     self._generation += 1
                     self._barge_speech_ms = 0.0
                     await self._clear_audio()
-                    agent_speaking = False
             else:
                 self._barge_speech_ms = 0.0
                 return
@@ -182,9 +192,13 @@ class CallSession:
             self._barge_speech_ms = 0.0
             self._speech_active = False
 
+            # Silently ignore short clicks, line static, or echo bursts (< 280ms)
+            if speech_ms < NOISE_IGNORE_MS:
+                return
+
             gen = self._generation
             if speech_ms < MIN_SPEECH_MS:
-                print(f"[TURN-UNCLEAR] Short/cut speech ({int(speech_ms)}ms, rms={int(avg_rms)})")
+                print(f"[TURN-UNCLEAR] Cut speech ({int(speech_ms)}ms, rms={int(avg_rms)})")
                 self._spawn(self._speak(pick_unclear_prompt(self._last_assistant_reply), gen, record_history=False))
                 return
 
@@ -197,7 +211,7 @@ class CallSession:
             return
         t_stt = int((time.perf_counter() - t0) * 1000)
 
-        if is_unclear_transcript(transcript or "", avg_rms, self._last_assistant_reply):
+        if is_unclear_transcript(transcript or "", avg_rms):
             print(f"[TURN-UNCLEAR] ({t_stt}ms STT, rms={int(avg_rms)}) raw={transcript!r}")
             await self._speak(pick_unclear_prompt(self._last_assistant_reply), gen, record_history=False)
             return
@@ -209,7 +223,10 @@ class CallSession:
         print(f"[TURN] Caller ({t_stt}ms STT): {transcript}")
         self.detected_language = detect_language_code(transcript)
         self.transcript_lines.append(f"Lead: {transcript}")
-        self.conversation.append({"role": "user", "content": transcript})
+        self.conversation.append({
+            "role": "user",
+            "content": f"{transcript}\n[{language_directive(self.detected_language)}]",
+        })
 
         pending = ""
         full_reply = []
@@ -270,7 +287,7 @@ class CallSession:
         chunk_size = OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES * 20 // 1000
         duration_sec = len(pcm_audio) / (OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES)
         self._playback_active = True
-        self._playback_until = max(self._playback_until, time.monotonic()) + duration_sec
+        self._playback_until = max(self._playback_until, time.monotonic()) + duration_sec + POST_PLAYBACK_GUARD_SEC
         for offset in range(0, len(pcm_audio), chunk_size):
             if gen != self._generation or not self._playback_active:
                 break
@@ -313,13 +330,14 @@ class CallSession:
         return payload
 
     async def flush_to_crm(self, call_status: str = "completed", duration_seconds: int | None = None) -> None:
-        if self._webhook_sent or not CRM_WEBHOOK_URL or not self.call_uuid:
+        webhook_url = CRM_WEBHOOK_URL or os.getenv("CRM_WEBHOOK_URL", "").strip()
+        if self._webhook_sent or not webhook_url or not self.call_uuid:
             return
         self._webhook_sent = True
         payload = self.build_webhook_payload(call_status=call_status, duration_seconds=duration_seconds)
         try:
             async with httpx.AsyncClient(timeout=12.0) as http:
-                resp = await http.post(CRM_WEBHOOK_URL, json=payload)
+                resp = await http.post(webhook_url, json=payload)
                 print(f"[CRM-WEBHOOK] call_uuid={self.call_uuid} status={resp.status_code} body={resp.text[:200]}")
         except Exception as exc:
             print(f"[CRM-WEBHOOK-ERR] call_uuid={self.call_uuid} err={exc}")
