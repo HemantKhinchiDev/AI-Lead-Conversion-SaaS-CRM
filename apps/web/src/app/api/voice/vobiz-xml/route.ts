@@ -182,12 +182,12 @@ async function resolveLatestVobizRecordingUrl(callUuid: string): Promise<string>
   const endpoint = `https://api.vobiz.ai/api/v1/Account/${encodeURIComponent(
     authId
   )}/Recording/?call_uuid=${encodeURIComponent(callUuid)}&limit=1`;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-        if (attempt > 0) await new Promise((r) => setTimeout(r, 450));
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 600));
     try {
       const res = await fetch(endpoint, {
         headers: { "X-Auth-ID": authId, "X-Auth-Token": authToken },
-        signal: AbortSignal.timeout(1200),
+        signal: AbortSignal.timeout(1500),
       });
       if (res.ok) {
         const json = (await res.json()) as {
@@ -259,7 +259,23 @@ async function transcribeRecordingUrl(
       return "";
     }
     const data = (await sttRes.json()) as { text?: unknown };
-    return readText(data?.text, 1000);
+    const primaryText = readText(data?.text, 1000);
+    if (primaryText || !autoDetectLanguage) {
+      return primaryText;
+    }
+    const fallbackForm = new FormData();
+    fallbackForm.append("file", new Blob([arrayBuffer], { type: contentType }), `caller.${ext}`);
+    fallbackForm.append("model", "whisper-large-v3-turbo");
+    fallbackForm.append("response_format", "json");
+    const retryRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: fallbackForm,
+      signal: AbortSignal.timeout(4500),
+    });
+    if (!retryRes.ok) return "";
+    const retryData = (await retryRes.json()) as { text?: unknown };
+    return readText(retryData?.text, 1000);
   } catch {
     return "";
   }
