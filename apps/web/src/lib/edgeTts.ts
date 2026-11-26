@@ -354,8 +354,8 @@ async function synthesizeViaSarvam(
         target_language_code: targetLanguageCode,
         speaker,
         model: SARVAM_MODEL,
-        speech_sample_rate: 16000,
-        pace: 1.15,
+        speech_sample_rate: 22050,
+        pace: 1.0,
       }),
       signal: AbortSignal.timeout(4500),
     });

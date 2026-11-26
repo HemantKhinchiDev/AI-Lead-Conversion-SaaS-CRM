@@ -510,7 +510,7 @@ function closingReply(language: VoiceLanguage, customScript?: string): string {
 
 function retryReply(language: VoiceLanguage): string {
   if (language === "hi-IN") {
-    return "माफ़ कीजिए, मैं आपकी बात नहीं समझ पाया। कृपया दोबारा बोलें या समाप्त करने के लिए 9 दबाएँ।";
+    return "क्षमा कीजिए, मैं आपकी बात स्पष्ट रूप से सुन नहीं पाया। कृपया फिर से बोलें, या कॉल समाप्त करने के लिए नौ दबाएँ।";
   }
   if (language === "gu-IN") {
     return "માફ કરશો, હું તમને સમજી શક્યો નહીં. કૃપા કરીને ફરીથી બોલો અથવા સમાપ્ત કરવા 9 દબાવો.";
@@ -596,7 +596,7 @@ async function handleAnswer(request: Request, payload: Dict, url: URL): Promise<
           : "Hello, I’m calling from Hemant’s team. We build high-converting websites, AI voice assistants, and smart automation systems that handle your customer calls and leads 24/7. Would you like to grow your business with our help?"
         : voiceGender === "male"
         ? "नमस्ते, मैं हेमंत बोल रहा हूँ। मैं बिज़नेसेज़ के लिए हाई-कन्वर्टिंग वेबसाइट्स, एआई वॉइस असिस्टेंट और स्मार्ट ऑटोमेशन सिस्टम बनाता हूँ, जो आपकी कस्टमर कॉल्स और लीड्स को चौबीस घंटे हैंडल करते हैं। क्या आप हमारी हेल्प से अपने बिज़नेस को ग्रो करना चाहते हैं?"
-        : "नमस्ते, मैं हेमंत की टीम से बोल रही हूँ। हम आपके बिज़नेस की कॉल्स और लीड्स के लिए एआई वॉइस असिस्टेंट बनाते हैं। क्या आप इस बारे में जानना चाहेंगे?";
+        : "नमस्ते, मैं हेमंत की टीम से बोल रही हूँ। हम आपके व्यापार के लिए ग्राहकों की कॉल और पूछताछ संभालने वाली स्वचालित प्रणाली बनाते हैं। क्या आप इसके बारे में जानना चाहेंगे?";
     reply =
       customOpeningScript ||
       readText(context?.knowledgeBase?.opening_script, 600) ||
