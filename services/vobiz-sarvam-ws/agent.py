@@ -75,10 +75,10 @@ def detect_language_code(text: str) -> str:
 
 def language_directive(lang_code: str) -> str:
     if lang_code == "en-IN":
-        return "Reply ONLY in English."
+        return "MANDATORY: Respond strictly in English using English alphabet ONLY. Zero Gujarati or Hindi words."
     if lang_code == "gu-IN":
-        return "Reply ONLY in Gujarati script."
-    return "Reply ONLY in Hindi (Devanagari script)."
+        return "MANDATORY: Respond strictly in Gujarati (ગુજરાતી લિપિ) ONLY. Zero English sentences or Hindi."
+    return "MANDATORY: Respond strictly in Hindi (देवनागरी लिपि) ONLY. Zero Gujarati or English sentences."
 
 
 def pick_unclear_prompt(last_reply: str) -> str:
@@ -223,9 +223,11 @@ class CallSession:
         print(f"[TURN] Caller ({t_stt}ms STT): {transcript}")
         self.detected_language = detect_language_code(transcript)
         self.transcript_lines.append(f"Lead: {transcript}")
+        directive = language_directive(self.detected_language)
+        self.conversation[0]["content"] = f"{SYSTEM_PROMPT}\n{directive}"
         self.conversation.append({
             "role": "user",
-            "content": f"{transcript}\n[{language_directive(self.detected_language)}]",
+            "content": f"{transcript}\n({directive})",
         })
 
         pending = ""
