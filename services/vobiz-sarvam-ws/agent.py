@@ -131,14 +131,23 @@ class CallSession:
         elif event in {"playedStream", "clearedAudio"}:
             self._playback_active = False
             self._playback_until = time.monotonic() + POST_PLAYBACK_GUARD_SEC
+        elif event == "stop":
+            print(f"[WS] Stream stopped stream_id={self.stream_id} call_uuid={self.call_uuid}")
 
     async def _handle_start(self, data: dict) -> None:
         start = data.get("start") or {}
-        self.stream_id = data.get("streamId") or start.get("streamId")
+        self.stream_id = (
+            data.get("streamId")
+            or data.get("stream_id")
+            or start.get("streamId")
+            or start.get("stream_id")
+        )
         self.call_uuid = (
             data.get("callUuid")
+            or data.get("call_uuid")
             or data.get("callId")
             or start.get("callUuid")
+            or start.get("call_uuid")
             or start.get("callId")
             or self.call_uuid
         )
@@ -280,7 +289,11 @@ class CallSession:
             self.conversation.append({"role": "assistant", "content": joined})
 
     async def _speak(self, text: str, gen: int, record_history: bool = False) -> None:
-        pcm = await self.client.synthesize(text, AGENT_LANGUAGE, TTS_SPEAKER, OUTBOUND_SAMPLE_RATE)
+        try:
+            pcm = await self.client.synthesize(text, AGENT_LANGUAGE, TTS_SPEAKER, OUTBOUND_SAMPLE_RATE)
+        except Exception as exc:
+            print(f"[WS-SPEAK-ERR] stream_id={self.stream_id} call_uuid={self.call_uuid} {type(exc).__name__}: {exc}")
+            return
         if gen == self._generation:
             if record_history:
                 self._last_assistant_reply = text
@@ -289,24 +302,32 @@ class CallSession:
             await self._play(pcm, gen)
 
     async def _play(self, pcm_audio: bytes, gen: int) -> None:
-        chunk_size = OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES * 20 // 1000
-        duration_sec = len(pcm_audio) / (OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES)
+        use_mulaw = "mulaw" in self.input_encoding.lower()
+        wire_bytes = audioop.lin2ulaw(pcm_audio, SAMPLE_WIDTH_BYTES) if use_mulaw else pcm_audio
+        bytes_per_sample = 1 if use_mulaw else SAMPLE_WIDTH_BYTES
+        content_type = "audio/x-mulaw" if use_mulaw else "audio/x-l16"
+        chunk_size = max(1, OUTBOUND_SAMPLE_RATE * bytes_per_sample * 20 // 1000)
+        duration_sec = len(wire_bytes) / max(1, OUTBOUND_SAMPLE_RATE * bytes_per_sample)
         self._playback_active = True
         self._playback_until = max(self._playback_until, time.monotonic()) + duration_sec + POST_PLAYBACK_GUARD_SEC
-        for offset in range(0, len(pcm_audio), chunk_size):
-            if gen != self._generation or not self._playback_active:
-                break
-            await self.websocket.send_text(json.dumps({
-                "event": "playAudio",
-                "streamId": self.stream_id,
-                "media": {
-                    "contentType": "audio/x-l16",
-                    "sampleRate": OUTBOUND_SAMPLE_RATE,
-                    "payload": base64.b64encode(pcm_audio[offset:offset + chunk_size]).decode(),
-                },
-            }))
-        if gen == self._generation:
-            await self.websocket.send_text(json.dumps({"event": "checkpoint", "streamId": self.stream_id, "name": "tts"}))
+        try:
+            for offset in range(0, len(wire_bytes), chunk_size):
+                if gen != self._generation or not self._playback_active:
+                    break
+                await self.websocket.send_text(json.dumps({
+                    "event": "playAudio",
+                    "streamId": self.stream_id,
+                    "media": {
+                        "contentType": content_type,
+                        "sampleRate": OUTBOUND_SAMPLE_RATE,
+                        "payload": base64.b64encode(wire_bytes[offset:offset + chunk_size]).decode(),
+                    },
+                }))
+                await asyncio.sleep(0.018)
+            if gen == self._generation:
+                await self.websocket.send_text(json.dumps({"event": "checkpoint", "streamId": self.stream_id, "name": "tts"}))
+        except Exception as exc:
+            print(f"[WS-PLAY-ERR] stream_id={self.stream_id} err={type(exc).__name__}: {exc}")
 
     async def _clear_audio(self) -> None:
         await self.websocket.send_text(json.dumps({"event": "clearAudio", "streamId": self.stream_id}))
