@@ -300,6 +300,7 @@ class CallSession:
                 continue
             try:
                 pcm = await task
+                print(f'TTS task done, pcm len = {len(pcm)}')
             except asyncio.CancelledError:
                 continue
             if gen == self._generation:
@@ -323,6 +324,7 @@ class CallSession:
             await self._play(pcm, gen)
 
     async def _play(self, pcm_audio: bytes, gen: int) -> None:
+        print(f'_play started, len = {len(pcm_audio)}')
         chunk_size = OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES * 20 // 1000
         duration_sec = len(pcm_audio) / (OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES)
         self._playback_active = True
