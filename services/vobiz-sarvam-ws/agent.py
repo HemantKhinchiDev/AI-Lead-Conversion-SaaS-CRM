@@ -32,12 +32,12 @@ SENTENCE_END = re.compile(r"[.!?।॥]+[\s\"')\]]*|\n+")
 MIN_TTS_CHARS = 14
 SILENCE_THRESHOLD = int(os.getenv("SILENCE_THRESHOLD", "650"))
 BARGE_IN_RMS = int(os.getenv("BARGE_IN_RMS", "1100"))
-BARGE_IN_MS = int(os.getenv("BARGE_IN_MS", "300"))
+BARGE_IN_MS = int(os.getenv("BARGE_IN_MS", "220"))
 END_OF_SPEECH_MS = int(os.getenv("END_OF_SPEECH_MS", "900"))
 NOISE_IGNORE_MS = int(os.getenv("NOISE_IGNORE_MS", "280"))
-MIN_SPEECH_MS = int(os.getenv("MIN_SPEECH_MS", "420"))
+MIN_SPEECH_MS = int(os.getenv("MIN_SPEECH_MS", "300"))
 MIN_AVG_RMS = int(os.getenv("MIN_AVG_RMS", "620"))
-POST_PLAYBACK_GUARD_SEC = float(os.getenv("POST_PLAYBACK_GUARD_SEC", "0.35"))
+POST_PLAYBACK_GUARD_SEC = float(os.getenv("POST_PLAYBACK_GUARD_SEC", "0.15"))
 
 FILLER_ONLY = {
     "yes", "yeah", "yep", "ok", "okay", "sir", "ji", "haan", "ha", "hmm", "hm",
@@ -57,6 +57,9 @@ def is_unclear_transcript(text: str, avg_rms: float) -> bool:
     cleaned = text.strip()
     if not cleaned:
         return True
+    normalized = re.sub(r"[^\w\s\u0900-\u097F\u0A80-\u0AFF]", "", cleaned.lower()).strip()
+    if normalized in {"haan", "ji", "bolo", "ha", "haan ji", "ji haan", "haan bolo"}:
+        return False
     if avg_rms < MIN_AVG_RMS and len(cleaned.split()) <= 2:
         return True
     # Reject non-Indian/Arabic garbage hallucinations like 'آپ آپ آپ'
@@ -291,7 +294,7 @@ class CallSession:
                 await buffer_sentence(pending.strip())
             await flush_sentence_buffer()
 
-        for task in tts_tasks:
+        for idx, task in enumerate(tts_tasks):
             if gen != self._generation:
                 task.cancel()
                 continue
@@ -300,7 +303,9 @@ class CallSession:
             except asyncio.CancelledError:
                 continue
             if gen == self._generation:
+                self._suppress_checkpoint = (idx != len(tts_tasks) - 1)
                 await self._play(pcm, gen)
+                self._suppress_checkpoint = False
 
         if full_reply:
             joined = " ".join(full_reply)
@@ -321,7 +326,7 @@ class CallSession:
         chunk_size = OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES * 20 // 1000
         duration_sec = len(pcm_audio) / (OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES)
         self._playback_active = True
-        self._playback_until = max(self._playback_until, time.monotonic()) + duration_sec + POST_PLAYBACK_GUARD_SEC
+        self._playback_until = time.monotonic() + duration_sec + POST_PLAYBACK_GUARD_SEC
         loop = asyncio.get_running_loop()
         next_send_at = loop.time()
         for offset in range(0, len(pcm_audio), chunk_size):
@@ -338,7 +343,7 @@ class CallSession:
             }))
             next_send_at += 0.020
             await asyncio.sleep(max(0.0, next_send_at - loop.time()))
-        if gen == self._generation:
+        if gen == self._generation and not getattr(self, "_suppress_checkpoint", False):
             await self.websocket.send_text(json.dumps({"event": "checkpoint", "streamId": self.stream_id, "name": "tts"}))
 
     async def _clear_audio(self) -> None:
