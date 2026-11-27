@@ -293,6 +293,8 @@ class CallSession:
         duration_sec = len(pcm_audio) / (OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES)
         self._playback_active = True
         self._playback_until = max(self._playback_until, time.monotonic()) + duration_sec + POST_PLAYBACK_GUARD_SEC
+        loop = asyncio.get_running_loop()
+        next_send_at = loop.time()
         for offset in range(0, len(pcm_audio), chunk_size):
             if gen != self._generation or not self._playback_active:
                 break
@@ -305,6 +307,8 @@ class CallSession:
                     "payload": base64.b64encode(pcm_audio[offset:offset + chunk_size]).decode(),
                 },
             }))
+            next_send_at += 0.020
+            await asyncio.sleep(max(0.0, next_send_at - loop.time()))
         if gen == self._generation:
             await self.websocket.send_text(json.dumps({"event": "checkpoint", "streamId": self.stream_id, "name": "tts"}))
 
