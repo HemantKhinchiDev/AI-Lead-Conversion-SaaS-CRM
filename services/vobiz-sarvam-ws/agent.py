@@ -41,7 +41,7 @@ POST_PLAYBACK_GUARD_SEC = float(os.getenv("POST_PLAYBACK_GUARD_SEC", "0.15"))
 
 FILLER_ONLY = {
     "yes", "yeah", "yep", "ok", "okay", "sir", "ji", "haan", "ha", "hmm", "hm",
-    "hello", "halo", "right", "sure", "હા", "જી", "ઓકે", "સર", "हाँ", "जी", "ठीक है"
+    "halo", "right", "sure", "હા", "જી", "ઓકે", "સર", "हाँ", "जी", "ठीक है"
 }
 
 
