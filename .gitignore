@@ -115,3 +115,4 @@ test-results/
 .openhands/
 .opencode/
 .agent-cache/
+services/vobiz-sarvam-ws/.env
