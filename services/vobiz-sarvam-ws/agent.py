@@ -21,7 +21,8 @@ DEFAULT_SYSTEM_PROMPT = (
     "CRITICAL LANGUAGE RULE: Match the exact language of the caller's LATEST message on EVERY turn (Hindi, Gujarati, or English). "
     "If the caller speaks English, reply strictly in English. If Gujarati, reply strictly in Gujarati. If Hindi, reply strictly in Hindi. "
     "Never repeat a question you already asked in the previous turn. "
-    "Keep every reply to 1 or 2 short conversational sentences with zero markdown, bullets, or emojis."
+    "Keep every reply to 1 or 2 short conversational sentences with zero markdown, bullets, or emojis. "
+    "Har jawab max 10-12 shabd ka ek sentence me de."
 )
 SYSTEM_PROMPT = os.getenv("AGENT_SYSTEM_PROMPT", "").strip() or DEFAULT_SYSTEM_PROMPT
 
