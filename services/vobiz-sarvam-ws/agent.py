@@ -237,6 +237,10 @@ class CallSession:
         full_reply = []
         tts_tasks: list[asyncio.Task[bytes]] = []
         first_logged = False
+        sentence_buffer: list[str] = []
+        buffered_chars = 0
+        buffer_flush_chars = 100
+        long_sentence_chars = 80
 
         async def enqueue_tts(sentence: str) -> None:
             nonlocal first_logged
@@ -248,19 +252,44 @@ class CallSession:
                 self.client.synthesize(sentence, AGENT_LANGUAGE, TTS_SPEAKER, OUTBOUND_SAMPLE_RATE)
             ))
 
+        async def flush_sentence_buffer() -> None:
+            nonlocal buffered_chars
+            text = " ".join(sentence_buffer).strip()
+            sentence_buffer.clear()
+            buffered_chars = 0
+            if text:
+                await enqueue_tts(text)
+
+        async def buffer_sentence(sentence: str) -> None:
+            nonlocal buffered_chars
+            sentence = sentence.strip()
+            if not sentence:
+                return
+            if len(sentence) >= long_sentence_chars:
+                await flush_sentence_buffer()
+                await enqueue_tts(sentence)
+                return
+            sentence_buffer.append(sentence)
+            buffered_chars += len(sentence)
+            if buffered_chars >= buffer_flush_chars:
+                await flush_sentence_buffer()
+
         async for delta in self.client.stream_reply(self.conversation):
             if gen != self._generation:
                 break
             pending += delta
             match = SENTENCE_END.search(pending)
-            if match and match.end() >= MIN_TTS_CHARS:
+            while match and match.end() >= MIN_TTS_CHARS:
                 sentence = pending[:match.end()].strip()
                 pending = pending[match.end():]
                 if sentence:
-                    await enqueue_tts(sentence)
+                    await buffer_sentence(sentence)
+                match = SENTENCE_END.search(pending)
 
-        if gen == self._generation and pending.strip():
-            await enqueue_tts(pending.strip())
+        if gen == self._generation:
+            if pending.strip():
+                await buffer_sentence(pending.strip())
+            await flush_sentence_buffer()
 
         for task in tts_tasks:
             if gen != self._generation:
