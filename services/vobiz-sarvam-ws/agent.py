@@ -246,15 +246,23 @@ class CallSession:
         buffer_flush_chars = 100
         long_sentence_chars = 80
 
-        async def enqueue_tts(sentence: str) -> None:
+        async def synthesize_sentence(sentence: str, split_long: bool) -> bytes:
+            if split_long and len(sentence) > long_sentence_chars:
+                midpoint = len(sentence) // 2
+                first_pcm, second_pcm = await asyncio.gather(
+                    self.client.synthesize(sentence[:midpoint], AGENT_LANGUAGE, TTS_SPEAKER, OUTBOUND_SAMPLE_RATE),
+                    self.client.synthesize(sentence[midpoint:], AGENT_LANGUAGE, TTS_SPEAKER, OUTBOUND_SAMPLE_RATE),
+                )
+                return first_pcm + second_pcm
+            return await self.client.synthesize(sentence, AGENT_LANGUAGE, TTS_SPEAKER, OUTBOUND_SAMPLE_RATE)
+
+        async def enqueue_tts(sentence: str, split_long: bool = False) -> None:
             nonlocal first_logged
             full_reply.append(sentence)
             if not first_logged:
                 print(f"[TURN] First sentence ready in {int((time.perf_counter() - t0) * 1000)}ms: {sentence}")
                 first_logged = True
-            tts_tasks.append(asyncio.create_task(
-                self.client.synthesize(sentence, AGENT_LANGUAGE, TTS_SPEAKER, OUTBOUND_SAMPLE_RATE)
-            ))
+            tts_tasks.append(asyncio.create_task(synthesize_sentence(sentence, split_long)))
 
         async def flush_sentence_buffer() -> None:
             nonlocal buffered_chars
