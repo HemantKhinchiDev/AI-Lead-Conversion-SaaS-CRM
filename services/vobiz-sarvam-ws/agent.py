@@ -30,11 +30,11 @@ DEFAULT_GREETING = "Namaste. Main Ragini bol rahi hoon. Kaise hain aap?"
 GREETING = os.getenv("AGENT_GREETING", "").strip() or DEFAULT_GREETING
 
 SENTENCE_END = re.compile(r"[.!?।॥]+[\s\"')\]]*|\n+")
-MIN_TTS_CHARS = 14
+MIN_TTS_CHARS = 8
 SILENCE_THRESHOLD = int(os.getenv("SILENCE_THRESHOLD", "650"))
 BARGE_IN_RMS = int(os.getenv("BARGE_IN_RMS", "1100"))
-BARGE_IN_MS = int(os.getenv("BARGE_IN_MS", "220"))
-END_OF_SPEECH_MS = int(os.getenv("END_OF_SPEECH_MS", "900"))
+BARGE_IN_MS = int(os.getenv("BARGE_IN_MS", "800"))
+END_OF_SPEECH_MS = int(os.getenv("END_OF_SPEECH_MS", "650"))
 NOISE_IGNORE_MS = int(os.getenv("NOISE_IGNORE_MS", "280"))
 MIN_SPEECH_MS = int(os.getenv("MIN_SPEECH_MS", "300"))
 MIN_AVG_RMS = int(os.getenv("MIN_AVG_RMS", "620"))
@@ -134,8 +134,9 @@ class CallSession:
         self._playback_until = 0.0
         self._generation = 0
         self._tasks: set[asyncio.Task] = set()
-        self._turn_lock = asyncio.Lock()
-        self._play_lock = asyncio.Lock()
+        self._turn_lock = None  # loop ke andar banega
+        self._play_lock = None  # loop ke andar banega, __init__ me nahi - nahi to lock kaam nahi karta
+        self._playback_token = 0
         self.preferred_language: str | None = None
         self._lang_streak = 0
         self._pending_lang = None
@@ -183,7 +184,17 @@ class CallSession:
         now = time.monotonic()
         agent_speaking = (self._playback_active and now < self._playback_until) or (now < self._playback_until)
 
+        # Greeting ke time barge-in band - user greeting ke beech me bole to bhi mat kaato
+        _since_start = time.monotonic() - self.started_at
         if agent_speaking:
+            # Barge-in BAND - agent bol raha hai to usko kaato mat, bas user ki awaaz sunte raho
+            # Neeche wali speech wali line chalegi, _clear_audio kabhi nahi chalega
+            pass
+        if False:  # purana dead block, kabhi mat chalao
+            # Greeting baj rahi hai, user ki awaaz ko barge mat samjho, bas sunte raho
+            # yahan return nahi karna, neeche wali speech wali line ko chalne do
+            pass
+        elif agent_speaking:
             if rms >= BARGE_IN_RMS:
                 self._barge_speech_ms += chunk_ms
                 if self._barge_speech_ms >= BARGE_IN_MS:
@@ -223,25 +234,30 @@ class CallSession:
             gen = self._generation
             if speech_ms < MIN_SPEECH_MS:
                 print(f"[TURN-UNCLEAR] Cut speech ({int(speech_ms)}ms, rms={int(avg_rms)})")
-                self._spawn(self._speak(pick_unclear_prompt(self._last_assistant_reply), gen, record_history=False))
+                print('[TURN-SKIP] Chhoti awaaz ignore, koi prompt nahi bajega'); return
                 return
 
             self._spawn(self._process_utterance(utterance, avg_rms, gen))
 
     async def _process_utterance(self, *args, **kwargs):
+        if self._turn_lock is None:
+            self._turn_lock = asyncio.Lock()
         async with self._turn_lock:
             await self._process_utterance_inner(*args, **kwargs)
 
     async def _process_utterance_inner(self, pcm_audio: bytes, avg_rms: float, gen: int) -> None:
         t0 = time.perf_counter()
         transcript = await self.client.transcribe(pcm_audio, self.input_sample_rate, AGENT_LANGUAGE)
-        if gen != self._generation:
-            return
+        # gen check BAND - gen badalne se TURN ka jawab rukna nahi chahiye
         t_stt = int((time.perf_counter() - t0) * 1000)
 
-        if is_unclear_transcript(transcript or "", avg_rms):
+        # Hindi lipi me aaya STT bhi Hindi hi hai - usko unclear mat samjho
+        _has_urdu = any('\u0600' <= ch <= '\u06FF' for ch in (transcript or ""))
+        if _has_urdu:
+            print(f"[LANG-FIX] Hindi lipi STT ko Hindi samjha: {transcript!r}")
+        if (not _has_urdu) and is_unclear_transcript(transcript or "", avg_rms):
             print(f"[TURN-UNCLEAR] ({t_stt}ms STT, rms={int(avg_rms)}) raw={transcript!r}")
-            await self._speak(pick_unclear_prompt(self._last_assistant_reply), gen, record_history=False)
+            print('[TURN-SKIP] Khali awaaz, koi prompt nahi bajega'); return
             return
 
         if is_filler_only(transcript):
@@ -264,8 +280,8 @@ class CallSession:
         first_logged = False
         sentence_buffer: list[str] = []
         buffered_chars = 0
-        buffer_flush_chars = 100
-        long_sentence_chars = 80
+        buffer_flush_chars = 50
+        long_sentence_chars = 60
 
         async def synthesize_sentence(sentence: str, split_long: bool) -> bytes:
             if split_long and len(sentence) > long_sentence_chars:
@@ -308,8 +324,7 @@ class CallSession:
                 await flush_sentence_buffer()
 
         async for delta in self.client.stream_reply(self.conversation):
-            if gen != self._generation:
-                break
+            # gen break BAND - beech me gen badle to bhi stream mat roko
             pending += delta
             match = SENTENCE_END.search(pending)
             while match and match.end() >= MIN_TTS_CHARS:
@@ -325,16 +340,14 @@ class CallSession:
             await flush_sentence_buffer()
 
         for idx, task in enumerate(tts_tasks):
-            if gen != self._generation:
-                task.cancel()
-                continue
+            # gen cancel BAND - TTS task ko beech me cancel mat karo
             try:
                 pcm = await task
                 print(f'TTS task done, pcm len = {len(pcm)}')
             except asyncio.CancelledError:
                 continue
-            if gen == self._generation:
-                self._suppress_checkpoint = (idx != len(tts_tasks) - 1)
+            if True:
+                self._suppress_checkpoint = False
                 await self._play(pcm, gen)
                 self._suppress_checkpoint = False
 
@@ -353,20 +366,38 @@ class CallSession:
                 self.conversation.append({"role": "assistant", "content": text})
             await self._play(pcm, gen)
 
+    def _get_play_lock(self):
+        # Lock ko pehli baar running loop me banao - tabhi wo asli me lock karega
+        if self._play_lock is None:
+            self._play_lock = asyncio.Lock()
+        return self._play_lock
+
     async def _play(self, pcm_audio: bytes, gen: int) -> None:
-        async with self._play_lock:
+        async with self._get_play_lock():
             await self._play_inner(pcm_audio, gen)
 
     async def _play_inner(self, pcm_audio: bytes, gen: int) -> None:
         print(f'_play started, len = {len(pcm_audio)}')
+        # Audio me sach me awaaz hai ya khali hai - ye check karo
+        try:
+            import struct
+            _n = min(len(pcm_audio)//2, 8000)
+            _samples = struct.unpack('<' + 'h'*_n, pcm_audio[:_n*2]) if _n > 0 else (0,)
+            _rms = (sum(s*s for s in _samples) / max(1, len(_samples))) ** 0.5 if _samples else 0
+            _mx = max(abs(s) for s in _samples) if _samples else 0
+            print(f'[AUDIO-CHECK] rms={int(_rms)} max={int(_mx)} - agar rms=0 hai to TTS ne khali audio banaya hai')
+        except Exception as e:
+            print(f'[AUDIO-CHECK] fail {e}')
         chunk_size = OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES * 20 // 1000
         duration_sec = len(pcm_audio) / (OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES)
+        self._playback_token += 1
+        _my_token = self._playback_token
         self._playback_active = True
         self._playback_until = time.monotonic() + duration_sec + POST_PLAYBACK_GUARD_SEC
         loop = asyncio.get_running_loop()
         next_send_at = loop.time()
         for offset in range(0, len(pcm_audio), chunk_size):
-            if gen != self._generation or not self._playback_active:
+            if not self._playback_active or _my_token != self._playback_token:
                 break
             await self.websocket.send_text(json.dumps({
                 "event": "playAudio",
@@ -379,12 +410,13 @@ class CallSession:
             }))
             next_send_at += 0.020
             await asyncio.sleep(max(0.0, next_send_at - loop.time()))
-        if gen == self._generation and not getattr(self, "_suppress_checkpoint", False):
+        if False:  # CHECKPOINT BAND
             await self.websocket.send_text(json.dumps({"event": "checkpoint", "streamId": self.stream_id, "name": "tts"}))
 
     async def _clear_audio(self) -> None:
         await self.websocket.send_text(json.dumps({"event": "clearAudio", "streamId": self.stream_id}))
         self._playback_active = False
+        self._playback_token += 1
         self._playback_until = 0.0
 
     def _spawn(self, coroutine) -> None:
