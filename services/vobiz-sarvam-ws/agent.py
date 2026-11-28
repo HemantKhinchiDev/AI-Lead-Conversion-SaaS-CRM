@@ -22,11 +22,11 @@ DEFAULT_SYSTEM_PROMPT = (
     "If the caller speaks English, reply strictly in English. If Gujarati, reply strictly in Gujarati. If Hindi, reply strictly in Hindi. "
     "Never repeat a question you already asked in the previous turn. "
     "Keep every reply to 1 or 2 short conversational sentences with zero markdown, bullets, or emojis. "
-    "Har jawab max 10-12 shabd ka ek sentence me de."
+    "Har jawab max 10-12 shabd ka ek sentence me de. " "Step-1 greeting is ONLY: Namaste, main Ragini bol rahi hoon, kaise hain aap? Uske baad user ke jawab ka wait karo. " "User ke jawab ko pehle acknowledge karo - agar user bole achha hoon / badhiya hoon to pehle bolo Bahut achha, ye sun kar achha laga. " "Step-2 pitch - jab user bole main achha hoon, tab ye bolo: Bahut achha, ye sun kar achha laga. Aapko sahi jaankari dene ke liye maine call kiya hai, kya abhi baat karna sahi rahega? " "Step-3 - jab user bole sahi rahega / boliye, tab dobara mat poochho Batayein kya help karun. Seedha wajah batao. " "CRITICAL LOOP RULE: Agar tumne pichhle turn me hi poochh liya hai kya abhi baat karna sahi rahega, to dobara wahi mat poochho. Agar user dobara bole main badhiya hoon, to usko haan samjho aur Step-3 par jao. "
 )
 SYSTEM_PROMPT = os.getenv("AGENT_SYSTEM_PROMPT", "").strip() or DEFAULT_SYSTEM_PROMPT
 
-DEFAULT_GREETING = "नमस्ते! मैं आपकी बिज़नेस इंक्वायरी के सिलसिले में बात कर रही हूँ। बताइए, आज मैं आपकी क्या मदद कर सकती हूँ?"
+DEFAULT_GREETING = "Namaste. Main Ragini bol rahi hoon. Kaise hain aap?"
 GREETING = os.getenv("AGENT_GREETING", "").strip() or DEFAULT_GREETING
 
 SENTENCE_END = re.compile(r"[.!?।॥]+[\s\"')\]]*|\n+")
@@ -69,6 +69,16 @@ def is_unclear_transcript(text: str, avg_rms: float) -> bool:
         return True
     return False
 
+
+def parse_language_request(text: str) -> str | None:
+    low = text.lower()
+    if any(x in low for x in ["gujarati me bolo", "gujarati mein bolo", "gujarati ma bolo", "speak in gujarati", "gujarati bol"]):
+        return "gu-IN"
+    if any(x in low for x in ["hindi me bolo", "hindi mein bolo", "speak in hindi", "hindi bol"]):
+        return "hi-IN"
+    if any(x in low for x in ["english me bolo", "english mein bolo", "speak in english", "english bol"]):
+        return "en-IN"
+    return None
 
 def detect_language_code(text: str) -> str:
     if re.search(r"[\u0A80-\u0AFF]", text):
@@ -124,6 +134,13 @@ class CallSession:
         self._playback_until = 0.0
         self._generation = 0
         self._tasks: set[asyncio.Task] = set()
+        self._turn_lock = asyncio.Lock()
+        self._play_lock = asyncio.Lock()
+        self.preferred_language: str | None = None
+        self._lang_streak = 0
+        self._pending_lang = None
+        self._last_question = ''
+        self._last_question_time = 0.0
 
     async def handle_message(self, raw_message: str) -> None:
         data = json.loads(raw_message)
@@ -211,7 +228,11 @@ class CallSession:
 
             self._spawn(self._process_utterance(utterance, avg_rms, gen))
 
-    async def _process_utterance(self, pcm_audio: bytes, avg_rms: float, gen: int) -> None:
+    async def _process_utterance(self, *args, **kwargs):
+        async with self._turn_lock:
+            await self._process_utterance_inner(*args, **kwargs)
+
+    async def _process_utterance_inner(self, pcm_audio: bytes, avg_rms: float, gen: int) -> None:
         t0 = time.perf_counter()
         transcript = await self.client.transcribe(pcm_audio, self.input_sample_rate, AGENT_LANGUAGE)
         if gen != self._generation:
@@ -333,6 +354,10 @@ class CallSession:
             await self._play(pcm, gen)
 
     async def _play(self, pcm_audio: bytes, gen: int) -> None:
+        async with self._play_lock:
+            await self._play_inner(pcm_audio, gen)
+
+    async def _play_inner(self, pcm_audio: bytes, gen: int) -> None:
         print(f'_play started, len = {len(pcm_audio)}')
         chunk_size = OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES * 20 // 1000
         duration_sec = len(pcm_audio) / (OUTBOUND_SAMPLE_RATE * SAMPLE_WIDTH_BYTES)
